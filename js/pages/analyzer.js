@@ -587,7 +587,7 @@ function renderAnalysisResults(container, report, isAr, selectedProfiles = []) {
         <td class="col-action">
           <span class="badge badge-mint">${item.aiAssessment ? assessmentBadge : aiUnavailable ? (isAr ? 'تعذر تقييم AI' : 'AI assessment unavailable') : (researchHits.length ? (isAr ? 'أدلة أولية' : 'Research leads') : lookupFailed ? (isAr ? 'تعذر الاتصال' : 'Lookup failed') : (isAr ? 'تم البحث' : 'Searched'))}</span>
           ${researchLinks.length ? `<div class="text-xs literature-links">${researchLinks.join('<br>')}<br><span class="text-muted">${isAr ? 'نتائج أولية — تحتاج مراجعة، ولم تُعتمد كمكوّن موثق.' : 'Preliminary leads; review required before verification.'}</span></div>` : `<div class="text-xs text-muted">${lookupFailed ? (isAr ? 'تعذر الوصول إلى Europe PMC.' : 'Could not reach Europe PMC.') : (isAr ? 'لا توجد نتائج مناسبة في Europe PMC.' : 'No relevant Europe PMC results.')}</div>`}
-          <div class="text-xs official-source-links"><span class="text-muted">${isAr ? 'تحقق رسمي:' : 'Official references:'}</span> ${officialSourceLinkHTML}</div>
+          <div class="text-xs official-source-links"><span class="text-muted">${isAr ? 'روابط تحقق (لم تُستعلم آلياً):' : 'Manual reference links (not queried):'}</span> ${officialSourceLinkHTML}</div>
         </td>
       </tr>
     `;

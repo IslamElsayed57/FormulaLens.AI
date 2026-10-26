@@ -824,7 +824,7 @@ function renderComparisonResults(container, comp, isAr, selectedProfiles = []) {
       return `<article class="comparison-research-item">
         <h4>${escapeHTML(name)} <span class="badge badge-neutral">${isAr ? 'غير مسجل محلياً' : 'Not in local database'}</span></h4>
         ${hitLinks ? `<ul class="literature-links">${hitLinks}</ul><p class="text-xs text-muted">${isAr ? 'نتائج بحث أولية؛ تحتاج مراجعة ولا تثبت هوية المكوّن وحدها.' : 'Preliminary literature leads; review required and not sufficient to verify ingredient identity.'}</p>` : `<p class="text-xs text-muted">${failed ? (isAr ? 'تعذر الاتصال بمصدر الأدبيات.' : 'Could not reach the literature source.') : (isAr ? 'لم تظهر نتائج مناسبة في Europe PMC.' : 'No relevant Europe PMC results.')}</p>`}
-        <p class="text-xs official-source-links"><span class="text-muted">${isAr ? 'مراجع رسمية للمراجعة:' : 'Official references to check:'}</span> ${officialLinks}</p>
+        <p class="text-xs official-source-links"><span class="text-muted">${isAr ? 'روابط تحقق (لم تُستعلم آلياً):' : 'Manual reference links (not queried):'}</span> ${officialLinks}</p>
       </article>`;
     }).join('');
 

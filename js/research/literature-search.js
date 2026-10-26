@@ -9,7 +9,7 @@ import { getAllRecords, putRecord } from '../database/indexeddb.js';
 const SEARCH_ENDPOINT = 'https://www.ebi.ac.uk/europepmc/webservices/rest/search';
 const MAX_RESULTS_PER_INGREDIENT = 3;
 const SEARCH_CONCURRENCY = 3;
-const REQUEST_TIMEOUT_MS = 9000;
+const REQUEST_TIMEOUT_MS = 20000;
 const CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 function cleanText(value, limit = 2400) {
@@ -27,6 +27,7 @@ async function searchIngredient(name, signal) {
   const url = new URL(SEARCH_ENDPOINT);
   url.searchParams.set('query', query);
   url.searchParams.set('format', 'json');
+  url.searchParams.set('synonym', 'true');
   url.searchParams.set('resultType', 'core');
   url.searchParams.set('pageSize', String(MAX_RESULTS_PER_INGREDIENT));
   url.searchParams.set('sort', 'RELEVANCE');
@@ -82,6 +83,13 @@ export async function researchUnmatchedIngredients(unmatchedIngredients, { signa
   const byIngredient = {};
   const errors = [];
   const cachedResearch = await getAllRecords('research_records').catch(() => []);
+  const freshCache = new Map();
+  for (const record of cachedResearch) {
+    const key = record.ingredientName?.toLowerCase().trim();
+    if (!key || record.sourceId !== 'europe_pmc' || Date.now() - new Date(record.retrievedAt || 0).getTime() >= CACHE_MAX_AGE_MS) continue;
+    if (!freshCache.has(key)) freshCache.set(key, []);
+    freshCache.get(key).push(record);
+  }
 
   let completed = 0;
   let nextIndex = 0;
@@ -90,11 +98,7 @@ export async function researchUnmatchedIngredients(unmatchedIngredients, { signa
       if (signal?.aborted) throw new DOMException('Research cancelled', 'AbortError');
       const name = namesToSearch[nextIndex++];
       onProgress?.(completed, namesToSearch.length, name);
-    const cached = cachedResearch.filter(record =>
-      record.ingredientName?.toLowerCase().trim() === name.toLowerCase().trim()
-      && record.sourceId === 'europe_pmc'
-      && Date.now() - new Date(record.retrievedAt || 0).getTime() < CACHE_MAX_AGE_MS
-    );
+    const cached = freshCache.get(name.toLowerCase().trim()) || [];
     if (cached.length) {
       byIngredient[name] = cached.map(record => ({
         sourceId: record.sourceId,
