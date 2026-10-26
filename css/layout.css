@@ -659,23 +659,34 @@
   }
 
   .sidebar {
-    transform: translateX(-100%);
-    width: 280px;
+    transform: translateX(-105%);
+    width: min(84vw, 320px);
+    max-width: calc(100vw - 48px);
     box-shadow: var(--shadow-xl);
+    z-index: calc(var(--z-overlay) + 1);
   }
 
   [dir="rtl"] .sidebar {
-    transform: translateX(100%);
+    transform: translateX(105%);
   }
 
   .sidebar--mobile-open,
   .sidebar--open {
     transform: translateX(0);
-    width: 280px;
+    width: min(84vw, 320px);
+    visibility: visible;
+    pointer-events: auto;
   }
 
   .sidebar-overlay {
     display: block;
+    z-index: var(--z-overlay);
+  }
+
+  body.sidebar-mobile-open .sidebar-overlay {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
   }
 
   .main-content {

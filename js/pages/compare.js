@@ -10,7 +10,7 @@
 import { createElement, renderIcon } from '../utils/dom.js';
 import { createBentoCard } from '../components/bento-card.js';
 import { parseIngredients, recognizeText } from '../ocr/ocr-engine.js';
-import { findIngredientByName } from '../database/indexeddb.js';
+import { findIngredientByName, findSynonym, getRecord, getAllRecords, searchIngredients } from '../database/indexeddb.js';
 import { compareProducts } from '../analysis/comparison.js';
 import { researchUnmatchedIngredients } from '../research/literature-search.js';
 import { runAIAnalysis } from '../ai/orchestrator.js';
@@ -515,9 +515,66 @@ async function prepareProductForComp(name, rawText) {
   const tokens = parseIngredients(rawText);
   const matched = [];
   const unmatched = [];
+  let records = [];
+  try {
+    records = await getAllRecords('ingredients');
+  } catch (error) {
+    console.warn('[Compare] Could not load ingredient records for matching:', error);
+  }
 
   for (const t of tokens) {
-    const rec = await findIngredientByName(t.cleanName.toLowerCase());
+    const norm = t.cleanName.toLowerCase().trim();
+    let rec = await findIngredientByName(norm);
+
+    if (!rec) {
+      const synonym = await findSynonym(norm);
+      if (synonym?.ingredientId) rec = await getRecord('ingredients', synonym.ingredientId);
+    }
+
+    if (!rec && records.length) {
+      rec = records.find(ingredient => {
+        const canonical = ingredient.normalizedName || '';
+        const synonyms = (ingredient.synonyms || []).map(value => value.toLowerCase());
+        return (canonical.length >= 4 && (norm.includes(canonical) || canonical.includes(norm))) ||
+          synonyms.some(synonym => synonym.length >= 4 && (norm.includes(synonym) || synonym.includes(norm)));
+      }) || null;
+    }
+
+    if (!rec && norm.length >= 4) {
+      const candidates = await searchIngredients(norm, { limit: 1 });
+      rec = candidates[0] || null;
+    }
+
+    if (!rec && norm.length >= 5 && records.length) {
+      const distance = (left, right) => {
+        const row = Array.from({ length: right.length + 1 }, (_, index) => index);
+        for (let i = 1; i <= left.length; i++) {
+          let diagonal = row[0];
+          row[0] = i;
+          for (let j = 1; j <= right.length; j++) {
+            const above = row[j];
+            row[j] = Math.min(row[j] + 1, row[j - 1] + 1, diagonal + (left[i - 1] === right[j - 1] ? 0 : 1));
+            diagonal = above;
+          }
+        }
+        return row[right.length];
+      };
+      let closest = null;
+      let closestDistance = Infinity;
+      for (const ingredient of records) {
+        const candidates = [ingredient.normalizedName || '', ...(ingredient.synonyms || []).map(value => value.toLowerCase())];
+        for (const candidate of candidates) {
+          if (candidate.length < 5 || Math.abs(candidate.length - norm.length) > 2) continue;
+          const candidateDistance = distance(candidate, norm);
+          if (candidateDistance < closestDistance) {
+            closest = ingredient;
+            closestDistance = candidateDistance;
+          }
+        }
+      }
+      if (closestDistance <= 2) rec = closest;
+    }
+
     if (rec) {
       matched.push({ rawName: t.rawName, cleanName: t.cleanName, ingredient: rec });
     } else {

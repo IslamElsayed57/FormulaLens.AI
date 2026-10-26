@@ -137,9 +137,11 @@ async function handleRoute() {
   // Close mobile sidebar on navigation
   const sidebar = document.getElementById('sidebar');
   if (sidebar) {
+    const wasOpen = sidebar.classList.contains('sidebar--mobile-open');
     sidebar.classList.remove('sidebar--mobile-open');
     document.getElementById('btn-mobile-menu')?.setAttribute('aria-expanded', 'false');
     document.getElementById('sidebar-overlay')?.classList.remove('sidebar-overlay--visible');
+    if (wasOpen) document.body.classList.remove('sidebar-mobile-open');
   }
 
   // Render Page
@@ -244,6 +246,7 @@ function setupGlobalControls() {
   if (btnMobileMenu && sidebar) {
     btnMobileMenu.addEventListener('click', () => {
       const isOpen = sidebar.classList.toggle('sidebar--mobile-open');
+      document.body.classList.toggle('sidebar-mobile-open', isOpen);
       btnMobileMenu.setAttribute('aria-expanded', String(isOpen));
       sidebarOverlay?.classList.toggle('sidebar-overlay--visible', isOpen);
     });
@@ -251,6 +254,7 @@ function setupGlobalControls() {
 
   sidebarOverlay?.addEventListener('click', () => {
     sidebar.classList.remove('sidebar--mobile-open');
+    document.body.classList.remove('sidebar-mobile-open');
     btnMobileMenu?.setAttribute('aria-expanded', 'false');
     sidebarOverlay.classList.remove('sidebar-overlay--visible');
   });
