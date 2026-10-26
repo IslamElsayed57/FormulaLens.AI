@@ -1,0 +1,38 @@
+{
+  "name": "FormulaLens AI Cosmetic Ingredient Scientific Database",
+  "version": "1.0.0",
+  "lastUpdated": "2026-03-01T00:00:00Z",
+  "license": "Open Cosmetic Science Knowledgebase (CC BY-SA 4.0)",
+  "totalRecords": 147,
+  "schema": {
+    "id": "string",
+    "inciName": "string",
+    "normalizedName": "string",
+    "casNumber": "string",
+    "category": "array<string>",
+    "functions": "array<string>",
+    "functionsAr": "array<string>",
+    "cirStatus": "string",
+    "comedogenicRating": "number (0-5)",
+    "sensitizingPotential": "string (low|moderate|high)",
+    "evidenceStatus": "string (verified|partially_verified)",
+    "suitability": {
+      "oily": "string (beneficial|safe|caution|avoid)",
+      "dry": "string (beneficial|safe|caution|avoid)",
+      "sensitive": "string (beneficial|safe|caution|avoid)",
+      "acneProne": "string (beneficial|safe|caution|avoid)",
+      "rosacea": "string (beneficial|safe|caution|avoid)",
+      "pregnancySafe": "boolean"
+    },
+    "descriptionEn": "string",
+    "descriptionAr": "string",
+    "synonyms": "array<string>",
+    "sources": "array<object>"
+  },
+  "approvedSources": [
+    { "id": "CIR_PANEL", "name": "Cosmetic Ingredient Review (CIR)", "url": "https://www.cir-safety.org" },
+    { "id": "EU_COSING", "name": "European Commission CosIng Database", "url": "https://ec.europa.eu/growth/tools-databases/cosing/" },
+    { "id": "PUBMED_NCBI", "name": "PubMed / NCBI Derm Research", "url": "https://pubmed.ncbi.nlm.nih.gov" },
+    { "id": "PC_BEAUTYPEDIA", "name": "Paula's Choice Ingredient Dictionary", "url": "https://www.paulaschoice.com/ingredient-dictionary" }
+  ]
+}

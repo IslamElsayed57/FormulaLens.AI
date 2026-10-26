@@ -1,0 +1,64 @@
+{
+  "name": "FormulaLens AI — Cosmetic Ingredient & Formula Intelligence",
+  "short_name": "FormulaLens",
+  "description": "Evidence-backed cosmetic ingredient analysis, formula compatibility, and skin intelligence PWA.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0d1512",
+  "theme_color": "#0f4c3a",
+  "icons": [
+    {
+      "src": "./assets/icons/favicon-32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "./assets/icons/favicon-64.png",
+      "sizes": "64x64",
+      "type": "image/png"
+    },
+    {
+      "src": "./assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["beauty", "health", "lifestyle", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Analyze Formula",
+      "short_name": "Analyze",
+      "description": "Scan or paste cosmetic ingredient list",
+      "url": "./index.html#analyzer",
+      "icons": [{ "src": "./assets/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Compare Products",
+      "short_name": "Compare",
+      "description": "Side-by-side cosmetic formula comparison",
+      "url": "./index.html#compare",
+      "icons": [{ "src": "./assets/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Ingredient Library",
+      "short_name": "Library",
+      "description": "Browse vetted cosmetic ingredients",
+      "url": "./index.html#library",
+      "icons": [{ "src": "./assets/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
