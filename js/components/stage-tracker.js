@@ -35,8 +35,8 @@ export const STAGE_DEFS = [
     index: 3,
     titleEn: '3. Evidence Retrieval',
     titleAr: '3. استرجاع الأدلة العلمية',
-    descEn: 'Evaluating CIR safety reviews, comedogenicity, and skin profile compatibility',
-    descAr: 'جمع مراجعات CIR، ومعدل سد المسام، وملاءمة الملف الشخصي',
+    descEn: 'Checking local evidence and searching Europe PMC for unlisted ingredients',
+    descAr: 'فحص الأدلة المحلية والبحث في Europe PMC عن المكونات غير المسجلة',
     icon: 'shield',
   },
   {

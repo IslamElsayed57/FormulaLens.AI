@@ -12,6 +12,8 @@ import { createBentoCard } from '../components/bento-card.js';
 import { parseIngredients, recognizeText } from '../ocr/ocr-engine.js';
 import { findIngredientByName } from '../database/indexeddb.js';
 import { compareProducts } from '../analysis/comparison.js';
+import { researchUnmatchedIngredients } from '../research/literature-search.js';
+import { runAIAnalysis } from '../ai/orchestrator.js';
 import { getState, subscribe } from '../state.js';
 import { showToast } from '../components/toast.js';
 import { translateCirStatus, formatIngredientFunctions, translateSensitizing, getPregnancyBadgeHTML, getSkinBadgeHTML } from '../utils/i18n.js';
@@ -222,6 +224,66 @@ export function renderCompare(container) {
         if (textC) {
           const prodC = await prepareProductForComp(nameC, textC);
           productsToCompare.push(prodC);
+        }
+      }
+
+      const allUnmatched = productsToCompare.flatMap(product => product.unmatchedIngredients || []);
+      if (allUnmatched.length) {
+        showToast(isAr ? 'جاري البحث عن كل المكونات غير المسجلة في PubMed وEurope PMC...' : 'Searching PubMed and Europe PMC for every unlisted ingredient...', { type: 'info' });
+        let literatureResearch;
+        try {
+          literatureResearch = await researchUnmatchedIngredients(allUnmatched);
+        } catch (researchError) {
+          literatureResearch = {
+            sourceId: 'europe_pmc', searchStatus: 'failed', byIngredient: {},
+            errors: [{ ingredientName: null, message: researchError.message }], retrievedCount: 0,
+          };
+        }
+        for (const product of productsToCompare) {
+          const names = (product.unmatchedIngredients || []).map(item => item.cleanName || item.rawName);
+          product.literatureResearch = {
+            ...literatureResearch,
+            searchedNames: names,
+            byIngredient: Object.fromEntries(names.map(name => [name, literatureResearch.byIngredient?.[name] || []])),
+            errors: (literatureResearch.errors || []).filter(error => !error.ingredientName || names.some(name => name.toLowerCase() === error.ingredientName.toLowerCase())),
+          };
+        }
+
+        showToast(isAr ? 'جاري تقييم الأدلة المسترجعة وربطها بالمكونات...' : 'Assessing retrieved evidence and mapping it to ingredients...', { type: 'info' });
+        const uniqueUnmatched = [...new Map(allUnmatched.map(item => {
+          const name = item.cleanName || item.rawName || '';
+          return [normalizeIngredientName(name), { rawName: item.rawName, cleanName: name }];
+        })).values()];
+        const combinedResearch = {
+          ...literatureResearch,
+          searchedNames: uniqueUnmatched.map(item => item.cleanName),
+        };
+        let researchAI = null;
+        try {
+          researchAI = await runAIAnalysis({
+            productName: isAr ? 'تقييم أدلة مكونات المقارنة' : 'Product comparison ingredient evidence review',
+            totalDetected: uniqueUnmatched.length,
+            matchedIngredients: [],
+            unmatchedIngredients: uniqueUnmatched,
+            literatureResearch: combinedResearch,
+            skinProfiles: selectedProfiles,
+          }, {
+            productName: isAr ? 'تقييم أدلة مكونات المقارنة' : 'Product comparison ingredient evidence review',
+            skinProfiles: selectedProfiles,
+            lang: getState('lang') || 'en',
+          });
+        } catch (aiError) {
+          console.warn('[Compare] Could not assess retrieved literature:', aiError);
+        }
+        for (const product of productsToCompare) {
+          product.aiReviewStatus = researchAI?.isLocalFallback ? 'unavailable' : researchAI ? 'completed' : 'unavailable';
+          product.unmatchedIngredients = (product.unmatchedIngredients || []).map(item => {
+            const target = normalizeIngredientName(item.cleanName || item.rawName);
+            const result = (researchAI?.ingredientAnalysis || []).find(candidate =>
+              normalizeIngredientName(candidate.name || candidate.inciName) === target
+            );
+            return { ...item, aiAssessment: result?.evidenceAssessment || null };
+          });
         }
       }
 
@@ -561,6 +623,34 @@ function renderComparisonResults(container, comp, isAr, selectedProfiles = []) {
         allMap.get(key).foundIn.add(pIdx);
       }
     });
+    (prod.unmatchedIngredients || []).forEach(item => {
+      const name = item.cleanName || item.rawName || '';
+      const key = normalizeIngredientName(name);
+      if (!key) return;
+      const assessment = item.aiAssessment || {};
+      const hasSourced = claim => Boolean(claim?.sourceRecordIds?.length);
+      const skinSuitability = Object.fromEntries((assessment.skinSuitability || [])
+        .filter(result => hasSourced(result) && result.status !== 'unknown')
+        .map(result => [result.profile, result.status === 'suitable' ? 'safe' : result.status]));
+      const ingredient = {
+        inciName: name,
+        functions: (assessment.functions || []).filter(hasSourced).map(claim => claim.value),
+        comedogenicRating: hasSourced(assessment.comedogenicity) ? assessment.comedogenicity.rating : null,
+        comedogenicityNote: hasSourced(assessment.comedogenicity) ? assessment.comedogenicity.note : '',
+        sensitizingPotential: hasSourced(assessment.sensitization) ? assessment.sensitization.level : 'unknown',
+        suitability: Object.keys(skinSuitability).length ? skinSuitability : null,
+      };
+      if (!allMap.has(key)) {
+        allMap.set(key, { name, ingredient, foundIn: new Set([pIdx]), isUnmatched: true, aiAssessment: assessment, aiReviewStatus: prod.aiReviewStatus });
+      } else {
+        allMap.get(key).foundIn.add(pIdx);
+        if (!allMap.get(key).aiReviewStatus && prod.aiReviewStatus) allMap.get(key).aiReviewStatus = prod.aiReviewStatus;
+        if (allMap.get(key).isUnmatched && !Object.keys(allMap.get(key).aiAssessment || {}).length && Object.keys(assessment).length) {
+          allMap.get(key).ingredient = ingredient;
+          allMap.get(key).aiAssessment = assessment;
+        }
+      }
+    });
   });
 
   const matrixRows = Array.from(allMap.values()).map(entry => {
@@ -572,23 +662,42 @@ function renderComparisonResults(container, comp, isAr, selectedProfiles = []) {
 
     const comedo = ing.comedogenicRating !== undefined && ing.comedogenicRating !== null
       ? `<span class="badge badge-${ing.comedogenicRating >= 3 ? 'amber' : 'neutral'}">${ing.comedogenicRating}/5</span>`
-      : '—';
+      : (ing.comedogenicityNote ? `<span class="text-xs">${escapeHTML(ing.comedogenicityNote)}</span>` : '—');
 
     const sensBadge = ing.sensitizingPotential === 'high'
       ? `<span class="badge badge-rose">${isAr ? 'مرتفع' : 'High'}</span>`
       : ing.sensitizingPotential === 'moderate'
         ? `<span class="badge badge-amber">${isAr ? 'متوسط' : 'Moderate'}</span>`
-        : `<span class="badge badge-emerald">${isAr ? 'منخفض' : 'Low'}</span>`;
+        : ing.sensitizingPotential === 'low'
+          ? `<span class="badge badge-mint">${isAr ? 'منخفض' : 'Low'}</span>`
+          : `<span class="badge badge-neutral">${isAr ? 'غير معلوم' : 'Unknown'}</span>`;
 
-    const pregBadge = getPregnancyBadgeHTML(ing.suitability, isAr, isPregnant);
-    const skinBadge = getSkinBadgeHTML(ing.suitability, isAr, skinTypes);
+    const pregnancy = entry.aiAssessment?.pregnancy;
+    const pregBadge = entry.isUnmatched
+      ? (!isPregnant ? '—' : pregnancy?.sourceRecordIds?.length && pregnancy.status === 'evidence_of_safety'
+        ? `<span class="badge badge-mint">${isAr ? 'لا إشارة قلق بالمصدر*' : 'No concern noted*'}</span>`
+        : pregnancy?.sourceRecordIds?.length && pregnancy.status === 'evidence_of_concern'
+          ? `<span class="badge badge-amber">${isAr ? 'إشارة تستدعي الحذر*' : 'Concern noted*'}</span>`
+          : `<span class="badge badge-neutral">${isAr ? 'بيانات غير كافية' : 'Insufficient data'}</span>`)
+      : getPregnancyBadgeHTML(ing.suitability, isAr, isPregnant);
+    const selectedSkinAssessments = (entry.aiAssessment?.skinSuitability || [])
+      .filter(result => skinTypes.includes(result.profile) && result.sourceRecordIds?.length);
+    const aiSkinStatus = selectedSkinAssessments.some(result => result.status === 'avoid') ? 'avoid'
+      : selectedSkinAssessments.some(result => result.status === 'caution') ? 'caution'
+        : selectedSkinAssessments.length && selectedSkinAssessments.every(result => result.status === 'suitable') ? 'suitable' : 'unknown';
+    const skinBadge = entry.isUnmatched
+      ? (aiSkinStatus === 'suitable' ? `<span class="badge badge-mint">${isAr ? 'ملائم وفق المصدر*' : 'Supported fit*'}</span>`
+        : aiSkinStatus === 'caution' ? `<span class="badge badge-amber">${isAr ? 'حذر*' : 'Caution*'}</span>`
+          : aiSkinStatus === 'avoid' ? `<span class="badge badge-rose">${isAr ? 'تجنب*' : 'Avoid*'}</span>`
+            : `<span class="badge badge-neutral">${isAr ? 'غير معلوم' : 'Unknown'}</span>`)
+      : getSkinBadgeHTML(ing.suitability, isAr, skinTypes);
 
-    const formattedFns = formatIngredientFunctions(ing, isAr, 2);
-    const cirText = isAr ? translateCirStatus(ing.cirStatus, true) : (ing.cirStatus || 'Reviewed');
+    const formattedFns = formatIngredientFunctions(ing, isAr, 2) || (ing.functions || []).filter(Boolean).slice(0, 2).join(isAr ? '، ' : ', ');
+    const cirText = entry.isUnmatched ? (isAr ? 'لم يُفحص CIR' : 'CIR not checked') : (isAr ? translateCirStatus(ing.cirStatus, true) : (ing.cirStatus || 'Reviewed'));
 
     return `
       <tr>
-        <td><strong>${entry.name}</strong></td>
+        <td><strong>${escapeHTML(entry.name)}</strong>${entry.isUnmatched ? `<br><span class="badge badge-neutral">${isAr ? 'غير مسجل محلياً' : 'Unlisted locally'}</span>${entry.aiAssessment ? `<br><span class="badge badge-mint">${isAr ? 'مراجعة AI للأدلة' : 'AI evidence review'}</span>` : entry.aiReviewStatus === 'unavailable' ? `<br><span class="badge badge-neutral">${isAr ? 'تقييم AI غير متاح' : 'AI review unavailable'}</span>` : ''}` : ''}</td>
         ${presenceCells}
         <td class="text-xs text-muted">${formattedFns || '—'}</td>
         <td class="text-xs">${cirText}</td>
@@ -614,6 +723,7 @@ function renderComparisonResults(container, comp, isAr, selectedProfiles = []) {
     badge: `${allMap.size} Ingredients`,
     badgeType: 'emerald',
     content: `
+      <p class="text-xs text-muted">${isAr ? '* تقييم أولي من AI مرتبط بمراجع البحث الظاهرة. هذا ليس توثيقاً نهائياً؛ عند غياب دليل مباشر تظهر القيمة غير معلومة. معلومات CIR لا تُجلب ضمن هذا البحث.' : '* Preliminary AI interpretation linked to the literature references shown below. It is not a verified dossier; unsupported fields remain unknown. CIR data is not retrieved in this workflow.'}</p>
       <div class="table-responsive-wrapper">
         <table class="comparison-matrix-table">
           <thead>
@@ -636,5 +746,53 @@ function renderComparisonResults(container, comp, isAr, selectedProfiles = []) {
     `,
   });
 
-  container.append(winnerCard, sharedCard, ...uniqueCards, matrixCard);
+  const researchCards = prods.filter(product => product.unmatchedIngredients?.length).map((product, index) => {
+    const research = product.literatureResearch || {};
+    const rows = product.unmatchedIngredients.map(item => {
+      const name = item.cleanName || item.rawName || '';
+      const hits = research.byIngredient?.[name] || [];
+      const failed = research.errors?.some(error => !error.ingredientName || error.ingredientName.toLowerCase() === name.toLowerCase());
+      const hitLinks = hits.map(hit => {
+        const href = /^https:\/\/(?:pubmed\.ncbi\.nlm\.nih\.gov|europepmc\.org|doi\.org)\//i.test(hit.sourceUrl || '') ? hit.sourceUrl : '';
+        return href ? `<li><a href="${escapeHTML(href)}" target="_blank" rel="noopener noreferrer">${escapeHTML(hit.title)}</a> <span class="text-muted">${escapeHTML(hit.year || '')} ${escapeHTML(hit.journal || '')}</span></li>` : '';
+      }).filter(Boolean).join('');
+      const query = encodeURIComponent(name);
+      const officialLinks = [
+        { label: 'PubMed', href: `https://pubmed.ncbi.nlm.nih.gov/?term=${query}` },
+        { label: 'CosIng', href: 'https://ec.europa.eu/growth/tools-databases/cosing/' },
+        { label: 'FDA', href: `https://www.fda.gov/search?s=${query}` },
+        { label: 'SFDA', href: 'https://www.sfda.gov.sa/ar/node/17590' },
+      ].map(source => `<a href="${escapeHTML(source.href)}" target="_blank" rel="noopener noreferrer">${source.label}</a>`).join(' · ');
+
+      return `<article class="comparison-research-item">
+        <h4>${escapeHTML(name)} <span class="badge badge-neutral">${isAr ? 'غير مسجل محلياً' : 'Not in local database'}</span></h4>
+        ${hitLinks ? `<ul class="literature-links">${hitLinks}</ul><p class="text-xs text-muted">${isAr ? 'نتائج بحث أولية؛ تحتاج مراجعة ولا تثبت هوية المكوّن وحدها.' : 'Preliminary literature leads; review required and not sufficient to verify ingredient identity.'}</p>` : `<p class="text-xs text-muted">${failed ? (isAr ? 'تعذر الاتصال بمصدر الأدبيات.' : 'Could not reach the literature source.') : (isAr ? 'لم تظهر نتائج مناسبة في Europe PMC.' : 'No relevant Europe PMC results.')}</p>`}
+        <p class="text-xs official-source-links"><span class="text-muted">${isAr ? 'مراجع رسمية للمراجعة:' : 'Official references to check:'}</span> ${officialLinks}</p>
+      </article>`;
+    }).join('');
+
+    return createBentoCard({
+      id: `comp-research-${index}-card`,
+      colSpan: 'full',
+      rowSpan: '1',
+      icon: 'database',
+      title: isAr ? `بحث المكونات غير المسجلة — ${product.name}` : `Unlisted Ingredient Research — ${product.name}`,
+      subtitle: isAr ? `${product.unmatchedIngredients.length} مكون قيد البحث` : `${product.unmatchedIngredients.length} unlisted ingredients searched`,
+      badge: isAr ? 'نتائج أولية' : 'Research leads',
+      badgeType: 'amber',
+      content: `<div class="comparison-research-list">${rows}</div>`,
+    });
+  });
+
+  container.append(winnerCard, sharedCard, ...uniqueCards, matrixCard, ...researchCards);
+}
+
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[char]);
+}
+
+function normalizeIngredientName(value) {
+  return String(value || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 }

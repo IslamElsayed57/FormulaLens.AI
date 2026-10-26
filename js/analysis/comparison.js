@@ -41,6 +41,9 @@ export function compareProducts(products = [], skinProfiles = []) {
       index: idx,
       name: prod.productName || prod.name || `Product ${idx + 1}`,
       ingredients: list,
+      unmatchedIngredients: prod.unmatchedIngredients || [],
+      literatureResearch: prod.literatureResearch || null,
+      aiReviewStatus: prod.aiReviewStatus || null,
       scoreData,
       totalCount: (prod.matchedIngredients?.length || 0) + (prod.unmatchedIngredients?.length || 0),
     };

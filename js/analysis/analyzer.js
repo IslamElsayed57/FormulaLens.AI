@@ -20,6 +20,7 @@ import {
 import { calculateFormulaScore } from './safety-scoring.js';
 import { runAIAnalysis } from '../ai/orchestrator.js';
 import { setState, getState } from '../state.js';
+import { researchUnmatchedIngredients } from '../research/literature-search.js';
 
 export const ANALYSIS_STAGES = {
   IDLE: 'idle',
@@ -151,13 +152,34 @@ export async function executeFormulaAnalysis(rawText, options = {}) {
       }
     }
 
-    // ── STAGE 3: Retrieving & validating supporting evidence ──────
+    // ── STAGE 3: Retrieve local and live literature evidence ──────
     notifyStage(ANALYSIS_STAGES.EVIDENCE, 0.60, {
       label: 'Compiling evidence packages, CIR safety profiles, and skin compatibility',
       matchedCount: matchedIngredients.length,
       unmatchedCount: unmatchedIngredients.length,
     });
     if (signal?.aborted) throw new Error('Analysis cancelled by user');
+
+    let literatureResearch = {
+      sourceId: 'europe_pmc', searchStatus: 'not_needed', searchedNames: [], skippedNames: [], byIngredient: {}, errors: [], retrievedCount: 0,
+    };
+    if (unmatchedIngredients.length > 0) {
+      try {
+        literatureResearch = await researchUnmatchedIngredients(unmatchedIngredients, {
+          signal,
+          onProgress: (current, total, ingredientName) => onStageChange?.(
+            ANALYSIS_STAGES.EVIDENCE,
+            0.60 + (total ? 0.12 * current / total : 0),
+            { label: 'Searching approved scientific literature', current, total, ingredientName },
+          ),
+        });
+      } catch (researchError) {
+        if (researchError.name === 'AbortError' || signal?.aborted) throw researchError;
+        console.warn('[Analyzer] Live literature retrieval failed:', researchError);
+        literatureResearch.searchStatus = 'failed';
+        literatureResearch.errors.push({ ingredientName: null, message: researchError.message });
+      }
+    }
 
     const safetyScoreData = calculateFormulaScore(matchedIngredients, unmatchedIngredients, skinProfiles);
 
@@ -180,8 +202,10 @@ export async function executeFormulaAnalysis(rawText, options = {}) {
       })),
       unmatchedIngredients: unmatchedIngredients.map(u => ({
         rawName: u.rawName,
+        cleanName: u.cleanName,
         concentrationHint: u.concentrationHint,
       })),
+      literatureResearch,
       skinProfiles,
       safetyScoreData,
     };
@@ -203,17 +227,26 @@ export async function executeFormulaAnalysis(rawText, options = {}) {
     // ── STAGE 5: Presenting completed results ──────────────────────
     notifyStage(ANALYSIS_STAGES.PRESENTING, 0.95, { label: 'Formatting Bento Grid results' });
 
+    const enrichedUnmatchedIngredients = unmatchedIngredients.map(item => {
+      const target = normalizeIngredientName(item.cleanName || item.rawName);
+      const aiAssessment = (aiResult.ingredientAnalysis || []).find(result =>
+        normalizeIngredientName(result.name || result.inciName) === target
+      )?.evidenceAssessment || null;
+      return { ...item, aiAssessment };
+    });
+
     const finalReport = {
       id: `analysis_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       createdAt: new Date().toISOString(),
       productName: productName || (getState('lang') === 'ar' ? 'تركيبة تجميلية' : 'Cosmetic Formula'),
       rawText,
       matchedIngredients,
-      unmatchedIngredients,
+      unmatchedIngredients: enrichedUnmatchedIngredients,
       totalCount: parsedTokens.length,
       matchPercentage: Math.round((matchedIngredients.length / parsedTokens.length) * 100),
       safetyScore: safetyScoreData,
       aiInsights: aiResult,
+      literatureResearch,
       skinProfiles,
     };
 
@@ -242,4 +275,8 @@ export async function executeFormulaAnalysis(rawText, options = {}) {
     notifyStage(ANALYSIS_STAGES.ERROR, 0, { error: err.message });
     throw err;
   }
+}
+
+function normalizeIngredientName(value) {
+  return String(value || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 }

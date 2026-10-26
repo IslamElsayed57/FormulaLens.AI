@@ -521,20 +521,73 @@ function renderAnalysisResults(container, report, isAr, selectedProfiles = []) {
 
   const unmatchedRows = (report.unmatchedIngredients || []).map(item => {
     const rawDisplayName = item.cleanName || item.rawName;
+    const assessment = item.aiAssessment || {};
+    const citedFunctions = (assessment.functions || []).filter(claim => claim.value && claim.sourceRecordIds?.length).map(claim => claim.value);
+    const comedoRating = assessment.comedogenicity?.sourceRecordIds?.length ? assessment.comedogenicity.rating : null;
+    const comedoNote = assessment.comedogenicity?.sourceRecordIds?.length ? assessment.comedogenicity.note : '';
+    const sensitivityLevel = assessment.sensitization?.sourceRecordIds?.length ? assessment.sensitization.level : 'unknown';
+    const pregnancyStatus = assessment.pregnancy?.sourceRecordIds?.length ? assessment.pregnancy.status : 'unknown';
+    const selectedAssessment = (assessment.skinSuitability || []).filter(result => skinTypes.includes(result.profile) && result.sourceRecordIds?.length);
+    const aiSkinStatus = selectedAssessment.some(result => result.status === 'avoid') ? 'avoid'
+      : selectedAssessment.some(result => result.status === 'caution') ? 'caution'
+        : selectedAssessment.length && selectedAssessment.every(result => result.status === 'suitable') ? 'suitable' : 'unknown';
+    const assessmentBadge = isAr ? 'تقييم أولي من AI' : 'AI evidence review';
+    const aiUnavailable = report.aiInsights?.isLocalFallback;
+    const researchHits = report.literatureResearch?.byIngredient?.[rawDisplayName] || [];
+    const lookupFailed = report.literatureResearch?.errors?.some(error => !error.ingredientName || error.ingredientName.toLowerCase() === String(rawDisplayName).toLowerCase());
+    const researchLinks = researchHits.map(hit => {
+      const href = /^https:\/\/(?:pubmed\.ncbi\.nlm\.nih\.gov|europepmc\.org|doi\.org)\//i.test(hit.sourceUrl || '') ? hit.sourceUrl : '';
+      return href ? `<a href="${escapeHTML(href)}" target="_blank" rel="noopener noreferrer">${escapeHTML(hit.title)}</a>` : '';
+    }).filter(Boolean);
+    const comedoCell = Number.isInteger(comedoRating)
+      ? `<span class="badge badge-neutral">${comedoRating}/5</span>`
+      : (comedoNote ? `<span class="text-xs">${escapeHTML(comedoNote)}</span>` : '—');
+    const sensitivityCell = sensitivityLevel === 'high'
+      ? `<span class="badge badge-rose">${isAr ? 'مرتفع*' : 'High*'}</span>`
+      : sensitivityLevel === 'moderate'
+        ? `<span class="badge badge-amber">${isAr ? 'متوسط*' : 'Moderate*'}</span>`
+        : sensitivityLevel === 'low'
+          ? `<span class="badge badge-mint">${isAr ? 'منخفض*' : 'Low*'}</span>`
+          : `<span class="badge badge-neutral">${isAr ? 'غير معلوم' : 'Unknown'}</span>`;
+    const pregnancyCell = !isPregnant ? '—'
+      : pregnancyStatus === 'evidence_of_safety'
+        ? `<span class="badge badge-mint">${isAr ? 'لا إشارة قلق بالمصدر*' : 'No concern noted*'}</span>`
+        : pregnancyStatus === 'evidence_of_concern'
+          ? `<span class="badge badge-amber">${isAr ? 'إشارة تستدعي الحذر*' : 'Concern noted*'}</span>`
+          : `<span class="badge badge-neutral">${isAr ? 'بيانات غير كافية' : 'Insufficient data'}</span>`;
+    const skinCell = aiSkinStatus === 'suitable'
+      ? `<span class="badge badge-mint">${isAr ? 'ملائم وفق المصدر*' : 'Supported fit*'}</span>`
+      : aiSkinStatus === 'caution'
+        ? `<span class="badge badge-amber">${isAr ? 'حذر*' : 'Caution*'}</span>`
+        : aiSkinStatus === 'avoid'
+          ? `<span class="badge badge-rose">${isAr ? 'تجنب*' : 'Avoid*'}</span>`
+          : `<span class="badge badge-neutral">${isAr ? 'غير معلوم' : 'Unknown'}</span>`;
+    const query = encodeURIComponent(rawDisplayName || '');
+    const officialSourceLinks = [
+      { label: 'PubMed', href: `https://pubmed.ncbi.nlm.nih.gov/?term=${query}` },
+      { label: 'CosIng', href: 'https://ec.europa.eu/growth/tools-databases/cosing/' },
+      { label: 'FDA', href: `https://www.fda.gov/search?s=${query}` },
+      { label: 'SFDA', href: 'https://www.sfda.gov.sa/ar/node/17590' },
+    ];
+    const officialSourceLinkHTML = officialSourceLinks.map(source =>
+      `<a href="${escapeHTML(source.href)}" target="_blank" rel="noopener noreferrer">${source.label}</a>`
+    ).join(' · ');
     return `
       <tr class="ingredient-row-unmatched">
         <td class="col-name">
-          <strong>${rawDisplayName}</strong>
-          ${item.rawName && item.rawName !== rawDisplayName ? `<span class="raw-sub">${item.rawName}</span>` : ''}
+          <strong>${escapeHTML(rawDisplayName)}</strong>
+          ${item.rawName && item.rawName !== rawDisplayName ? `<span class="raw-sub">${escapeHTML(item.rawName)}</span>` : ''}
         </td>
-        <td class="col-functions text-xs text-muted">${isAr ? 'قيد البحث العلمي' : 'Under Investigation'}</td>
-        <td class="col-cir text-xs"><span class="badge badge-neutral">${isAr ? 'غير مسجل محلياً' : 'Unlisted in DB'}</span></td>
-        <td class="col-comedo">—</td>
-        <td class="col-sens"><span class="badge badge-neutral">${isAr ? 'غير محدد' : 'Unspecified'}</span></td>
-        <td class="col-preg"><span class="badge badge-neutral">${isAr ? 'غير مؤكد' : 'Pending'}</span></td>
-        <td class="col-skin"><span class="badge badge-neutral">${isAr ? 'عام' : 'General'}</span></td>
+        <td class="col-functions text-xs">${citedFunctions.length ? escapeHTML(citedFunctions.join(isAr ? '، ' : ', ')) : `<span class="text-muted">${isAr ? 'لا توجد وظيفة موثقة' : 'No sourced function'}</span>`}</td>
+        <td class="col-cir text-xs"><span class="badge badge-neutral">${isAr ? 'لم يُفحص CIR' : 'CIR not checked'}</span></td>
+        <td class="col-comedo">${comedoCell}</td>
+        <td class="col-sens" title="${escapeHTML(assessment.sensitization?.note || '')}">${sensitivityCell}${assessment.sensitization?.note ? `<small class="text-muted">${escapeHTML(assessment.sensitization.note)}</small>` : ''}</td>
+        <td class="col-preg" title="${escapeHTML(assessment.pregnancy?.note || '')}">${pregnancyCell}${isPregnant && assessment.pregnancy?.note ? `<small class="text-muted">${escapeHTML(assessment.pregnancy.note)}</small>` : ''}</td>
+        <td class="col-skin" title="${escapeHTML(selectedAssessment[0]?.note || '')}">${skinCell}${selectedAssessment[0]?.note ? `<small class="text-muted">${escapeHTML(selectedAssessment[0].note)}</small>` : ''}</td>
         <td class="col-action">
-          <span class="badge badge-mint">${isAr ? 'مستخرج' : 'Extracted'}</span>
+          <span class="badge badge-mint">${item.aiAssessment ? assessmentBadge : aiUnavailable ? (isAr ? 'تعذر تقييم AI' : 'AI assessment unavailable') : (researchHits.length ? (isAr ? 'أدلة أولية' : 'Research leads') : lookupFailed ? (isAr ? 'تعذر الاتصال' : 'Lookup failed') : (isAr ? 'تم البحث' : 'Searched'))}</span>
+          ${researchLinks.length ? `<div class="text-xs literature-links">${researchLinks.join('<br>')}<br><span class="text-muted">${isAr ? 'نتائج أولية — تحتاج مراجعة، ولم تُعتمد كمكوّن موثق.' : 'Preliminary leads; review required before verification.'}</span></div>` : `<div class="text-xs text-muted">${lookupFailed ? (isAr ? 'تعذر الوصول إلى Europe PMC.' : 'Could not reach Europe PMC.') : (isAr ? 'لا توجد نتائج مناسبة في Europe PMC.' : 'No relevant Europe PMC results.')}</div>`}
+          <div class="text-xs official-source-links"><span class="text-muted">${isAr ? 'تحقق رسمي:' : 'Official references:'}</span> ${officialSourceLinkHTML}</div>
         </td>
       </tr>
     `;
@@ -560,6 +613,7 @@ function renderAnalysisResults(container, report, isAr, selectedProfiles = []) {
     badge: isAr ? `${totalMatched}/${totalScreened} مطابق` : `${totalMatched}/${totalScreened} Verified`,
     badgeType: totalMatched > 0 ? 'emerald' : 'amber',
     content: allBreakdownRows.length > 0 ? `
+      ${report.literatureResearch?.skippedNames?.length ? `<p class="text-xs text-muted">${isAr ? `لم يُبحث عن ${report.literatureResearch.skippedNames.length} مكون بسبب حد البحث: ${escapeHTML(report.literatureResearch.skippedNames.join('، '))}` : `Search limit reached; not searched: ${escapeHTML(report.literatureResearch.skippedNames.join(', '))}`}</p>` : ''}
       <div class="table-responsive-wrapper">
         <table class="ingredient-breakdown-table">
           <thead>
@@ -598,6 +652,12 @@ function renderAnalysisResults(container, report, isAr, selectedProfiles = []) {
       }
     });
   });
+}
+
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[char]);
 }
 
 function showIngredientModal(ing, isAr) {

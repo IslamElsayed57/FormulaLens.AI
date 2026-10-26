@@ -131,6 +131,19 @@ export function validateAIResponse(rawResponse, evidencePackage = null) {
       }
     }
 
+    const unmatched = findUnmatchedIngredient(evidencePackage, item.name || item.inciName);
+    if (unmatched) {
+      item.matchedInDatabase = false;
+      item.evidenceStatus = EVIDENCE_STATUS.PENDING_RESEARCH;
+      item.evidenceAssessment = validateEvidenceAssessment(
+        item.evidenceAssessment,
+        item.name || item.inciName,
+        evidencePackage,
+      );
+      const sourceIds = new Set(getArticlesForIngredient(evidencePackage, item.name || item.inciName).map(article => article.sourceId));
+      item.sourceIds = item.sourceIds.filter(sourceId => sourceIds.has(sourceId));
+    }
+
     // AI-generated fields must not be marked as verified
     if (item.aiObservations && item.evidenceStatus === EVIDENCE_STATUS.VERIFIED) {
       item.evidenceStatus = EVIDENCE_STATUS.PARTIALLY_VERIFIED;
@@ -189,6 +202,89 @@ export function validateAIResponse(rawResponse, evidencePackage = null) {
   sanitized.policyViolations = policyViolations.length > 0 ? policyViolations : undefined;
 
   return { result: sanitized, errors, warnings, policyViolations };
+}
+
+function normalizeName(value) {
+  return String(value || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+}
+
+function findUnmatchedIngredient(evidencePackage, name) {
+  const target = normalizeName(name);
+  return (evidencePackage?.unmatchedIngredients || []).find(item =>
+    normalizeName(item.cleanName || item.rawName || item) === target
+  ) || null;
+}
+
+function getArticlesForIngredient(evidencePackage, name) {
+  const target = normalizeName(name);
+  const key = Object.keys(evidencePackage?.literatureResearch?.byIngredient || {})
+    .find(candidate => normalizeName(candidate) === target);
+  return key ? evidencePackage.literatureResearch.byIngredient[key] || [] : [];
+}
+
+function validateEvidenceAssessment(value, name, evidencePackage) {
+  const articles = getArticlesForIngredient(evidencePackage, name);
+  const validRecordIds = new Set(articles.map(article => article.sourceRecordId).filter(Boolean));
+  const validProfiles = new Set(evidencePackage?.skinProfiles || []);
+  const claims = Array.isArray(value?.functions) ? value.functions.slice(0, 8).map(claim => {
+    const sourceRecordIds = Array.isArray(claim?.sourceRecordIds)
+      ? claim.sourceRecordIds.filter(id => validRecordIds.has(id)).slice(0, 5)
+      : [];
+    return {
+      value: sourceRecordIds.length ? String(claim.value || '').slice(0, 300) : '',
+      sourceRecordIds,
+    };
+  }).filter(claim => claim.value && claim.sourceRecordIds.length) : [];
+
+  const claimSources = item => Array.isArray(item?.sourceRecordIds)
+    ? item.sourceRecordIds.filter(id => validRecordIds.has(id)).slice(0, 5)
+    : [];
+  const comedoSources = claimSources(value?.comedogenicity);
+  const rawRating = Number(value?.comedogenicity?.rating);
+  const validRating = typeof value?.comedogenicity?.rating === 'number'
+    && Number.isInteger(rawRating) && rawRating >= 0 && rawRating <= 5 && comedoSources.length > 0;
+  const sensitivitySources = claimSources(value?.sensitization);
+  const sensitivityLevels = ['low', 'moderate', 'high'];
+  const sensitivityLevel = sensitivitySources.length && sensitivityLevels.includes(value?.sensitization?.level)
+    ? value.sensitization.level : 'unknown';
+  const pregnancySources = claimSources(value?.pregnancy);
+  const pregnancyStatuses = ['evidence_of_safety', 'evidence_of_concern'];
+  const pregnancyStatus = pregnancySources.length && pregnancyStatuses.includes(value?.pregnancy?.status)
+    ? value.pregnancy.status : 'unknown';
+  const skinStatuses = ['suitable', 'caution', 'avoid'];
+  const skinSuitability = Array.isArray(value?.skinSuitability) ? value.skinSuitability
+    .filter(item => validProfiles.has(item?.profile))
+    .slice(0, 8)
+    .map(item => {
+      const sourceRecordIds = claimSources(item);
+      const status = sourceRecordIds.length && skinStatuses.includes(item?.status) ? item.status : 'unknown';
+      return {
+        profile: item.profile,
+        status,
+        note: sourceRecordIds.length ? String(item.note || '').slice(0, 500) : '',
+        sourceRecordIds: status === 'unknown' ? [] : sourceRecordIds,
+      };
+    }) : [];
+
+  return {
+    functions: claims,
+    comedogenicity: {
+      rating: validRating ? rawRating : null,
+      note: comedoSources.length ? String(value.comedogenicity.note || '').slice(0, 500) : '',
+      sourceRecordIds: validRating || comedoSources.length ? comedoSources : [],
+    },
+    sensitization: {
+      level: sensitivityLevel,
+      note: sensitivitySources.length ? String(value.sensitization.note || '').slice(0, 500) : '',
+      sourceRecordIds: sensitivityLevel === 'unknown' ? [] : sensitivitySources,
+    },
+    pregnancy: {
+      status: pregnancyStatus,
+      note: pregnancySources.length ? String(value.pregnancy.note || '').slice(0, 500) : '',
+      sourceRecordIds: pregnancyStatus === 'unknown' ? [] : pregnancySources,
+    },
+    skinSuitability,
+  };
 }
 
 /**

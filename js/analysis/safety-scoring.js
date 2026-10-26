@@ -73,8 +73,8 @@ export function calculateFormulaScore(matched = [], unmatched = [], skinProfiles
       rosacea: 'الوردية',
       combination: 'المختلطة',
       normal: 'العادية',
-      pregnant: 'فترة الحمل والرضاعة',
-      pregnancy: 'فترة الحمل والرضاعة',
+      pregnant: 'فترة الحمل',
+      pregnancy: 'فترة الحمل',
     };
 
     for (const profile of skinProfiles) {

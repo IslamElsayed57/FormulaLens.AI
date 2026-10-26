@@ -61,7 +61,7 @@ export function renderProfile(container) {
         { id: 'sensitive', en: 'Sensitive / Reactive Barrier', ar: 'بشرة حساسة وسريعة التهيج' },
         { id: 'acneProne', en: 'Acne-Prone (Easily Clogged)', ar: 'معرضة للحبوب وانسداد المسام' },
         { id: 'rosacea', en: 'Rosacea / Flushing', ar: 'وردية واحمرار سطحي' },
-        { id: 'pregnant', en: 'Pregnancy & Nursing Safe', ar: 'فترة الحمل والرضاعة' },
+        { id: 'pregnant', en: 'Pregnancy & Nursing Safe', ar: 'فترة الحمل' },
       ].map(item => `
           <label class="custom-radio-row">
             <input type="checkbox" class="profile-chk" name="skin_concern" value="${item.id}" ${storedProfiles.includes(item.id) ? 'checked' : ''} />

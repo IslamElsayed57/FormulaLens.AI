@@ -280,3 +280,115 @@
 .sidebar__brand:hover .sidebar__brand-name {
   color: var(--color-primary);
 }
+
+/* ──────────────────────────────────────────
+   13. MOBILE LAYOUT SAFEGUARDS
+────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .main-content,
+  .page-wrapper,
+  .bento-grid,
+  .bento-grid > *,
+  .bento-card,
+  .bento-card-header,
+  .bento-card-title-group,
+  .bento-card-text {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .page-wrapper {
+    padding: var(--space-4) var(--space-3);
+  }
+
+  /* Dashboard cards use legacy span classes as well as the shared bento grid. */
+  .dashboard-grid,
+  .dashboard-bento {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dashboard-grid > *,
+  .dashboard-bento > *,
+  .dashboard-grid > .bento-col-2,
+  .dashboard-grid > .bento-col-3,
+  .dashboard-grid > .bento-col-full {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+
+  .bento-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+
+  .bento-grid > .bento-col-1,
+  .bento-grid > .bento-col-2,
+  .bento-grid > .bento-col-3,
+  .bento-grid > .bento-col-full {
+    grid-column: 1 / -1;
+  }
+
+  .bento-card {
+    padding: var(--space-4);
+    overflow-wrap: anywhere;
+  }
+
+  .bento-card-title,
+  .bento-card-subtitle,
+  .bento-card p,
+  .bento-card h3 {
+    word-break: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .bento-card-header {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .bento-card-title-group {
+    flex: 1 1 12rem;
+  }
+
+  .bento-card-actions {
+    max-width: 100%;
+  }
+
+  .topbar {
+    min-height: var(--topbar-height);
+    height: auto;
+    padding: var(--space-2) var(--space-3);
+    gap: var(--space-2);
+  }
+
+  .topbar__breadcrumb {
+    flex: 1 1 8rem;
+    overflow: hidden;
+  }
+
+  .topbar__actions {
+    gap: var(--space-1);
+  }
+
+  .hero-actions-row {
+    flex-wrap: wrap;
+  }
+
+  .hero-actions-row .btn {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+
+  .comparison-grid--2,
+  .comparison-grid--3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .table-wrapper,
+  .table-scroll,
+  .data-table-wrapper {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}

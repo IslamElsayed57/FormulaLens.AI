@@ -100,10 +100,13 @@ ${unknownIngredients.length > 0
   ? unknownIngredients.join(', ')
   : 'None — all ingredients were found in the database.'}
 
+LIVE LITERATURE SEARCH (Europe PMC; publication leads, not verified ingredient records):
+${formatLiteratureResearch(evidencePackage.literatureResearch)}
+
 ${conflicts.length > 0 ? `KNOWN CONFLICTS:\n${conflicts.map(c => `- ${c}`).join('\n')}` : ''}
 
 INSTRUCTIONS:
-Analyze the above ingredients using ONLY the provided evidence. Generate the structured JSON response.
+Analyze the above ingredients using ONLY the provided evidence. Return one ingredientAnalysis item for every unmatched ingredient, using its exact input name. Literature results may be used only when their title/abstract directly supports the observation; do not infer ingredient identity from a vague text match, invent details, or claim that a record is verified. For every evidenceAssessment field, cite the exact sourceRecordIds that directly support it. If none do, use unknown/null and an empty sourceRecordIds list. Never infer a 0–5 comedogenicity rating from qualitative prose. Never call an ingredient pregnancy-safe based only on absence of reported harm; require direct ingredient-specific pregnancy evidence, otherwise use unknown. Skin-profile suitability requires direct evidence relevant to that profile; otherwise unknown. A single case report may document a possible reaction but does not establish population-level sensitization risk. CosIng, FDA, and SFDA links are provided for the user to check manually; their contents were not retrieved and must not be cited as searched evidence. Unknown ingredients remain pending research. Generate the structured JSON response.
 
 REQUIRED JSON OUTPUT SCHEMA:
 {
@@ -119,7 +122,14 @@ REQUIRED JSON OUTPUT SCHEMA:
       "irritationNotes": "string or null",
       "comedogenicityNote": "string or null — only include if evidence exists",
       "aiObservations": "string or null — label as unverified if AI-generated",
-      "sourceIds": ["string — from evidence package only"]
+      "sourceIds": ["string — from evidence package only"],
+      "evidenceAssessment": {
+        "functions": [{"value": "string", "sourceRecordIds": ["exact Europe PMC IDs shown above"]}],
+        "comedogenicity": {"rating": "integer 0-5 or null; only if a cited source explicitly reports this scale", "note": "string or null", "sourceRecordIds": []},
+        "sensitization": {"level": "low|moderate|high|unknown", "note": "string or null", "sourceRecordIds": []},
+        "pregnancy": {"status": "evidence_of_safety|evidence_of_concern|unknown", "note": "string or null", "sourceRecordIds": []},
+        "skinSuitability": [{"profile": "one selected skin profile", "status": "suitable|caution|avoid|unknown", "note": "string or null", "sourceRecordIds": []}]
+      }
     }
   ],
   "skinCompatibility": {
@@ -157,6 +167,24 @@ REQUIRED JSON OUTPUT SCHEMA:
   "limitations": ["string — important limitations of this analysis"],
   "formulationSafetyNote": "string — reminder that this is cosmetic research only"
 }`;
+}
+
+function formatLiteratureResearch(research = {}) {
+  if (!research.searchedNames?.length) return 'No live literature search was performed.';
+  const lines = [];
+  for (const name of research.searchedNames) {
+    const articles = research.byIngredient?.[name] || [];
+    lines.push(`\nIngredient query: ${name}`);
+    if (!articles.length) lines.push('  No relevant records returned.');
+    for (const article of articles) {
+      lines.push(`  [Europe PMC ${article.sourceRecordId}] ${article.title} (${article.year || 'date unavailable'}). ${article.journal || ''}`);
+      if (article.abstract) lines.push(`  Abstract excerpt: ${article.abstract.slice(0, 800)}`);
+      lines.push(`  Source URL: ${article.sourceUrl}`);
+    }
+  }
+  if (research.skippedNames?.length) lines.push(`\nNot searched due to per-analysis limit: ${research.skippedNames.join(', ')}`);
+  if (research.errors?.length) lines.push(`\nRetrieval errors: ${research.errors.map(e => `${e.ingredientName || 'search'}: ${e.message}`).join('; ')}`);
+  return lines.join('\n').slice(0, 50000);
 }
 
 /**

@@ -384,13 +384,14 @@ export async function setDatasetMeta(key, value) {
  * Returns structured export object
  */
 export async function exportUserData() {
-  const [savedProducts, analysisHistory, comparisons, userNotes, confirmedLists] =
+  const [savedProducts, analysisHistory, comparisons, userNotes, confirmedLists, researchRecords] =
     await Promise.all([
       getAllRecords('saved_products'),
       getAllRecords('analysis_history'),
       getAllRecords('comparisons'),
       getAllRecords('user_notes'),
       getAllRecords('confirmed_lists'),
+      getAllRecords('research_records'),
     ]);
 
   return {
@@ -404,6 +405,7 @@ export async function exportUserData() {
       comparisons,
       userNotes,
       confirmedLists,
+      researchRecords,
     },
   };
 }
@@ -442,6 +444,7 @@ export async function importUserData(backup) {
     comparisons: 'comparisons',
     userNotes: 'user_notes',
     confirmedLists: 'confirmed_lists',
+    researchRecords: 'research_records',
   };
 
   for (const [dataKey, storeName] of Object.entries(storeMap)) {
@@ -464,7 +467,7 @@ export async function importUserData(backup) {
  * Clear all user-generated data (not the ingredient dataset)
  */
 export async function clearUserData() {
-  const stores = ['saved_products', 'analysis_history', 'comparisons', 'user_notes', 'confirmed_lists'];
+  const stores = ['saved_products', 'analysis_history', 'comparisons', 'user_notes', 'confirmed_lists', 'research_records'];
   const db = getDatabase();
 
   for (const storeName of stores) {
