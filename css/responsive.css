@@ -456,6 +456,43 @@
     -webkit-overflow-scrolling: touch;
   }
 
+  /* Result tables keep readable column widths and scroll inside their cards. */
+  .table-responsive-wrapper {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x pan-y;
+  }
+
+  .ingredient-breakdown-table,
+  .comparison-matrix-table {
+    width: max-content;
+    min-width: 920px;
+    table-layout: auto;
+  }
+
+  .ingredient-breakdown-table th,
+  .ingredient-breakdown-table td,
+  .comparison-matrix-table th,
+  .comparison-matrix-table td {
+    min-width: 92px;
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: anywhere;
+    vertical-align: top;
+  }
+
+  .ingredient-breakdown-table th:first-child,
+  .ingredient-breakdown-table td:first-child,
+  .comparison-matrix-table th:first-child,
+  .comparison-matrix-table td:first-child {
+    min-width: 145px;
+  }
+
   .table-wrapper,
   .table-scroll,
   .data-table-wrapper {
