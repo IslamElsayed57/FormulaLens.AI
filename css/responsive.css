@@ -548,3 +548,28 @@
     padding-inline: var(--space-4);
   }
 }
+
+/* Landscape phones have more horizontal room; use it for wider result tables. */
+@media (max-width: 900px) and (orientation: landscape) {
+  .table-responsive-wrapper {
+    max-height: min(68vh, 520px);
+    overflow-x: auto;
+    overflow-y: auto;
+    scrollbar-width: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x pan-y;
+  }
+
+  .ingredient-breakdown-table,
+  .comparison-matrix-table {
+    min-width: max(100%, 1040px);
+  }
+
+  .ingredient-breakdown-table th,
+  .comparison-matrix-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--color-surface);
+  }
+}

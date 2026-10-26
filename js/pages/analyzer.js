@@ -531,7 +531,12 @@ function renderAnalysisResults(container, report, isAr, selectedProfiles = []) {
     const aiSkinStatus = selectedAssessment.some(result => result.status === 'avoid') ? 'avoid'
       : selectedAssessment.some(result => result.status === 'caution') ? 'caution'
         : selectedAssessment.length && selectedAssessment.every(result => result.status === 'suitable') ? 'suitable' : 'unknown';
-    const assessmentBadge = isAr ? 'تقييم أولي من AI' : 'AI evidence review';
+    const hasCitedAssessment = Boolean(
+      citedFunctions.length || comedoRating !== null ||
+      assessment.sensitization?.sourceRecordIds?.length ||
+      assessment.pregnancy?.sourceRecordIds?.length || selectedAssessment.length
+    );
+    const assessmentBadge = isAr ? 'تقييم أولي مرتبط بمصدر' : 'Source-linked preliminary assessment';
     const aiUnavailable = report.aiInsights?.isLocalFallback;
     const researchHits = report.literatureResearch?.byIngredient?.[rawDisplayName] || [];
     const lookupFailed = report.literatureResearch?.errors?.some(error => !error.ingredientName || error.ingredientName.toLowerCase() === String(rawDisplayName).toLowerCase());
@@ -585,7 +590,7 @@ function renderAnalysisResults(container, report, isAr, selectedProfiles = []) {
         <td class="col-preg" title="${escapeHTML(assessment.pregnancy?.note || '')}">${pregnancyCell}${isPregnant && assessment.pregnancy?.note ? `<small class="text-muted">${escapeHTML(assessment.pregnancy.note)}</small>` : ''}</td>
         <td class="col-skin" title="${escapeHTML(selectedAssessment[0]?.note || '')}">${skinCell}${selectedAssessment[0]?.note ? `<small class="text-muted">${escapeHTML(selectedAssessment[0].note)}</small>` : ''}</td>
         <td class="col-action">
-          <span class="badge badge-mint">${item.aiAssessment ? assessmentBadge : aiUnavailable ? (isAr ? 'تعذر تقييم AI' : 'AI assessment unavailable') : (researchHits.length ? (isAr ? 'أدلة أولية' : 'Research leads') : lookupFailed ? (isAr ? 'تعذر الاتصال' : 'Lookup failed') : (isAr ? 'تم البحث' : 'Searched'))}</span>
+          <span class="badge badge-${hasCitedAssessment ? 'mint' : 'neutral'}">${hasCitedAssessment ? assessmentBadge : aiUnavailable ? (isAr ? 'لم يتوفر تقييم مدعوم بالمصادر' : 'No source-backed assessment available') : (researchHits.length ? (isAr ? 'أدلة أولية للمراجعة' : 'Research leads to review') : lookupFailed ? (isAr ? 'فشل البحث؛ البيانات غير متاحة' : 'Search failed; no evidence available') : (isAr ? 'تم البحث دون نتيجة مناسبة' : 'Search returned no suitable records'))}</span>
           ${researchLinks.length ? `<div class="text-xs literature-links">${researchLinks.join('<br>')}<br><span class="text-muted">${isAr ? 'نتائج أولية — تحتاج مراجعة، ولم تُعتمد كمكوّن موثق.' : 'Preliminary leads; review required before verification.'}</span></div>` : `<div class="text-xs text-muted">${lookupFailed ? (isAr ? 'تعذر الوصول إلى Europe PMC.' : 'Could not reach Europe PMC.') : (isAr ? 'لا توجد نتائج مناسبة في Europe PMC.' : 'No relevant Europe PMC results.')}</div>`}
           <div class="text-xs official-source-links"><span class="text-muted">${isAr ? 'روابط تحقق (لم تُستعلم آلياً):' : 'Manual reference links (not queried):'}</span> ${officialSourceLinkHTML}</div>
         </td>
