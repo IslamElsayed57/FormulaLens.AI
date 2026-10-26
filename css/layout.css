@@ -668,7 +668,8 @@
     transform: translateX(100%);
   }
 
-  .sidebar--mobile-open {
+  .sidebar--mobile-open,
+  .sidebar--open {
     transform: translateX(0);
     width: 280px;
   }
@@ -686,7 +687,8 @@
   }
 
   .topbar__mobile-menu {
-    display: none !important;
+    display: inline-flex;
+    flex: 0 0 auto;
   }
 
   .bento-grid {

@@ -92,6 +92,9 @@
     <main class="main-content" id="main-content">
       <!-- Topbar Header -->
       <header class="topbar" id="topbar">
+        <button type="button" class="btn btn--ghost btn--icon-sm topbar__mobile-menu" id="btn-mobile-menu" aria-label="Open navigation menu" aria-controls="sidebar" aria-expanded="false">
+          <span data-icon="menu"></span>
+        </button>
         <div class="topbar__breadcrumb" id="topbar-breadcrumb">
           <span class="topbar__breadcrumb-item" data-i18n="app.title">FormulaLens AI</span>
           <span class="topbar__breadcrumb-sep">/</span>
@@ -115,6 +118,8 @@
           </button>
         </div>
       </header>
+
+      <button type="button" class="sidebar-overlay" id="sidebar-overlay" aria-label="Close navigation menu" tabindex="-1"></button>
 
       <!-- Dynamic Page Container -->
       <div class="page-wrapper" id="page-content" role="region" aria-live="polite">

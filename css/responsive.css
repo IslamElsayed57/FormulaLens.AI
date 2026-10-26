@@ -304,8 +304,10 @@
   /* Dashboard cards use legacy span classes as well as the shared bento grid. */
   .dashboard-grid,
   .dashboard-bento {
+    display: grid;
     grid-template-columns: minmax(0, 1fr) !important;
     grid-auto-rows: auto;
+    width: 100%;
   }
 
   .dashboard-grid > *,
@@ -315,6 +317,43 @@
   .dashboard-grid > .bento-col-full {
     grid-column: 1 / -1 !important;
     grid-row: auto;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .dashboard-grid > .bento-row-2 {
+    grid-row: auto !important;
+  }
+
+  .sidebar {
+    width: min(84vw, 320px);
+    max-width: calc(100vw - 48px);
+    overflow: hidden;
+    visibility: hidden;
+    pointer-events: none;
+    transition: transform var(--duration-slow) var(--ease-out),
+                visibility var(--duration-slow) var(--ease-out);
+  }
+
+  .sidebar--mobile-open {
+    width: min(84vw, 320px);
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .sidebar-overlay {
+    display: block;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .sidebar-overlay--visible {
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .sidebar__toggle {
+    display: none;
   }
 
   .bento-grid {

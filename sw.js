@@ -3,7 +3,7 @@
  * Provides offline caching, asset management, and background resilience
  */
 
-const CACHE_NAME = 'formulalens-v1.0.3';
+const CACHE_NAME = 'formulalens-v1.0.5';
 
 const ASSETS_TO_CACHE = [
   './',
