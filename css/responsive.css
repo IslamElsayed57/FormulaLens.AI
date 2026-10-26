@@ -304,7 +304,8 @@
   /* Dashboard cards use legacy span classes as well as the shared bento grid. */
   .dashboard-grid,
   .dashboard-bento {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-auto-rows: auto;
   }
 
   .dashboard-grid > *,
@@ -312,12 +313,12 @@
   .dashboard-grid > .bento-col-2,
   .dashboard-grid > .bento-col-3,
   .dashboard-grid > .bento-col-full {
-    grid-column: 1 / -1;
+    grid-column: 1 / -1 !important;
     grid-row: auto;
   }
 
   .bento-grid {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) !important;
     gap: var(--space-3);
   }
 
@@ -325,7 +326,7 @@
   .bento-grid > .bento-col-2,
   .bento-grid > .bento-col-3,
   .bento-grid > .bento-col-full {
-    grid-column: 1 / -1;
+    grid-column: 1 / -1 !important;
   }
 
   .bento-card {
@@ -348,6 +349,17 @@
 
   .bento-card-title-group {
     flex: 1 1 12rem;
+    min-width: 0;
+  }
+
+  .bento-card-text {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .bento-card-actions .badge {
+    white-space: normal;
+    text-align: center;
   }
 
   .bento-card-actions {
@@ -382,6 +394,12 @@
   .comparison-grid--2,
   .comparison-grid--3 {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .comparison-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .table-wrapper,
