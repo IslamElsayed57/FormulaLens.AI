@@ -32,15 +32,14 @@ function buildSystemInstruction(lang = 'en') {
 
 CRITICAL RULES — YOU MUST FOLLOW THESE WITHOUT EXCEPTION:
 
-1. BASE YOUR ANALYSIS ON THE PROVIDED EVIDENCE PACKAGE ONLY.
-   - Do not invent ingredient information not present in the evidence package.
-   - Do not claim scientific findings that are not supported by the provided evidence.
-   - If evidence is absent for an ingredient or claim, state clearly that evidence is not available.
+1. RESEARCH EACH UNMATCHED INGREDIENT USING WEB SEARCH WHEN AVAILABLE.
+   - Search the web yourself for each unmatched ingredient and relevant claims; do not restrict searches to a predetermined list of domains.
+   - Prefer primary research, official regulatory material, recognized safety reviews, and authoritative ingredient references, while considering source quality and date.
+   - Use the supplied evidence package as additional context. Do not invent findings; if searches find no relevant evidence, state that clearly.
 
 2. DO NOT FABRICATE SOURCE CITATIONS.
-   - Only reference sources that appear in the provided evidence package.
-   - Do not invent publication dates, URLs, journal names, or study results.
-   - If you need to reference an ingredient fact, use only the sourceId values provided.
+   - Cite real sources actually retrieved by web search or listed in the evidence package. Never invent publication dates, URLs, journal names, or study results.
+   - Include source title and URL for web-search sources in evidenceReferences. Do not present a search result title as proof unless its content supports the claim.
 
 3. DO NOT INFER INGREDIENT CONCENTRATIONS.
    - Ingredient lists may reflect decreasing concentration under some labeling rules, but exact concentrations are never known from ingredient lists alone.
@@ -100,13 +99,13 @@ ${unknownIngredients.length > 0
   ? unknownIngredients.join(', ')
   : 'None — all ingredients were found in the database.'}
 
-LIVE SOURCE SEARCH (Europe PMC, PubMed, Crossref, and PubChem; records are leads and are not verified ingredient dossiers):
+SUPPLIED SEARCH RESULTS (additional leads; assess relevance and source quality):
 ${formatLiteratureResearch(evidencePackage.literatureResearch)}
 
 ${conflicts.length > 0 ? `KNOWN CONFLICTS:\n${conflicts.map(c => `- ${c}`).join('\n')}` : ''}
 
 INSTRUCTIONS:
-Analyze the above ingredients using ONLY the supplied evidence records. Return one ingredientAnalysis item for every unmatched ingredient, using its exact input name. Search records may be used only when their title/abstract directly supports the observation; do not infer ingredient identity from a vague text match, invent details, or claim that a record is verified. Cite the exact sourceRecordIds shown for each claim. PubChem records may support chemical identity or formula only, not cosmetic safety, comedogenicity, sensitization, pregnancy safety, or skin suitability. Crossref and PubMed citation metadata without an abstract may identify a publication but do not support specific safety claims. If direct evidence is absent for a field, use unknown/null and an empty sourceRecordIds list. Never infer a 0–5 comedogenicity rating from qualitative prose. Never call an ingredient pregnancy-safe based only on absence of reported harm; require direct ingredient-specific pregnancy evidence, otherwise use unknown. Skin-profile suitability requires direct evidence relevant to that profile; otherwise unknown. A single case report may document a possible reaction but does not establish population-level sensitization risk. CosIng, FDA, and SFDA links are provided for manual checking unless a retrieved record is explicitly included above; their contents must not be cited as searched evidence. Unknown ingredients remain pending research. Generate the structured JSON response.
+Search independently for every unmatched ingredient using web search when available, and use relevant sources from any domain. Return one ingredientAnalysis item for every unmatched ingredient, using its exact input name. Search results are leads: check that the source actually concerns the named ingredient and that its content supports the claim; do not infer ingredient identity from a vague text match or claim a source is verified. Cite supplied records with their exact sourceRecordIds. For web sources, include exact source title and URL in evidenceReferences, with the ingredient and claim they support. PubChem records may support chemical identity or formula only, not cosmetic safety, comedogenicity, sensitization, pregnancy safety, or skin suitability. Citation metadata without an abstract or accessible supporting content does not support specific safety claims. If reliable direct evidence is absent for a field, use unknown/null. Never infer a 0–5 comedogenicity rating from qualitative prose. Never call an ingredient pregnancy-safe based only on absence of reported harm; require direct ingredient-specific pregnancy evidence, otherwise use unknown. Skin-profile suitability requires direct evidence relevant to that profile; otherwise unknown. A single case report may document a possible reaction but does not establish population-level sensitization risk. Unknown ingredients remain pending research. Generate the structured JSON response.
 
 REQUIRED JSON OUTPUT SCHEMA:
 {
@@ -156,8 +155,9 @@ REQUIRED JSON OUTPUT SCHEMA:
   ],
   "evidenceReferences": [
     {
-      "sourceId": "string — from approved sources only",
+      "sourceId": "string or null — use a real ID only when supplied",
       "sourceName": "string",
+      "sourceUrl": "string — exact HTTPS URL actually retrieved",
       "ingredientId": "string or null",
       "claim": "string — what this source supports",
       "evidenceCategory": "string"

@@ -87,18 +87,19 @@ export async function runAIAnalysis(evidencePackage, options = {}) {
   });
 
   let rawResponseText;
+  let webSources = [];
   const startTime = performance.now();
 
   try {
     switch (provider) {
       case PROVIDERS.GEMINI:
-        rawResponseText = await analyzeWithGemini(promptData, { signal: options.signal });
+        ({ text: rawResponseText, webSources = [] } = await analyzeWithGemini(promptData, { signal: options.signal }));
         break;
       case PROVIDERS.OPENAI:
-        rawResponseText = await analyzeWithOpenAI(promptData, { signal: options.signal });
+        ({ text: rawResponseText, webSources = [] } = await analyzeWithOpenAI(promptData, { signal: options.signal }));
         break;
       case PROVIDERS.ANTHROPIC:
-        rawResponseText = await analyzeWithAnthropic(promptData, { signal: options.signal });
+        ({ text: rawResponseText, webSources = [] } = await analyzeWithAnthropic(promptData, { signal: options.signal }));
         break;
       default:
         throw new Error(`Unsupported provider: ${provider}`);
@@ -117,7 +118,8 @@ export async function runAIAnalysis(evidencePackage, options = {}) {
   const durationMs = Math.round(performance.now() - startTime);
 
   // Validate the response against scientific source policy
-  const validation = validateAIResponse(rawResponseText, evidencePackage);
+  const validationPackage = { ...evidencePackage, webSearchSources: webSources };
+  const validation = validateAIResponse(rawResponseText, validationPackage);
 
   if (!validation.result) {
     console.warn('[AI Orchestrator] Validation failed for AI response, falling back to local synthesis. Errors:', validation.errors);
@@ -136,6 +138,7 @@ export async function runAIAnalysis(evidencePackage, options = {}) {
     isLocalFallback: false,
     durationMs,
     policyViolations: validation.policyViolations || [],
+    webSearchSources: webSources,
     warnings: [...(validation.result.warnings || []), ...(validation.warnings || [])],
   };
 }

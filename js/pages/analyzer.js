@@ -436,6 +436,7 @@ function renderAnalysisResults(container, report, isAr, selectedProfiles = []) {
           ${activesList.map(a => `<span class="badge badge-mint">${a}</span>`).join('')}
         </div>
         ${insights.textureAndVehicle ? `<p class="text-xs text-muted mt-2">${insights.textureAndVehicle}</p>` : ''}
+        ${ai.webSearchSources?.length ? `<div class="mt-2"><strong class="text-xs">${isAr ? 'مصادر بحث الويب' : 'Web search sources'}</strong><ul class="text-xs">${ai.webSearchSources.map(source => `<li><a href="${escapeHTML(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHTML(source.title)}</a></li>`).join('')}</ul></div>` : ''}
       </div>
     `,
   });

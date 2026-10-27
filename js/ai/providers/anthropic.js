@@ -37,6 +37,7 @@ export async function analyzeWithAnthropic(promptData, options = {}) {
         content: promptData.userMessage,
       },
     ],
+    tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }],
   };
 
   const response = await fetch(API_ENDPOINT, {
@@ -58,13 +59,17 @@ export async function analyzeWithAnthropic(promptData, options = {}) {
   }
 
   const data = await response.json();
-  const text = data?.content?.[0]?.text;
+  const text = data?.content?.find(block => block.type === 'text')?.text;
 
   if (!text) {
     throw new Error('Empty response received from Anthropic API');
   }
 
-  return text;
+  const webSources = (data.content || []).filter(block => block.type === 'web_search_tool_result')
+    .flatMap(block => block.content || []).map(source => ({
+      title: source.title || 'Web source', url: source.url || '',
+    })).filter(source => /^https:\/\//i.test(source.url));
+  return { text, webSources };
 }
 
 /**

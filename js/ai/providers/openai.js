@@ -10,7 +10,7 @@ const OPENAI_MODELS = {
 };
 
 const DEFAULT_MODEL = 'gpt-4o-mini';
-const API_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
+const API_ENDPOINT = 'https://api.openai.com/v1/responses';
 
 /**
  * Send an analysis request to OpenAI
@@ -28,18 +28,12 @@ export async function analyzeWithOpenAI(promptData, options = {}) {
 
   const requestBody = {
     model: model,
-    messages: [
-      {
-        role: 'system',
-        content: promptData.systemInstruction,
-      },
-      {
-        role: 'user',
-        content: promptData.userMessage,
-      },
+    input: [
+      { role: 'system', content: [{ type: 'input_text', text: promptData.systemInstruction }] },
+      { role: 'user', content: [{ type: 'input_text', text: promptData.userMessage }] },
     ],
-    temperature: 0.1,
-    response_format: { type: 'json_object' },
+    tools: [{ type: 'web_search' }],
+    include: ['web_search_call.action.sources'],
   };
 
   const response = await fetch(API_ENDPOINT, {
@@ -59,13 +53,18 @@ export async function analyzeWithOpenAI(promptData, options = {}) {
   }
 
   const data = await response.json();
-  const text = data?.choices?.[0]?.message?.content;
+  const text = data?.output?.filter(item => item.type === 'message')
+    .flatMap(item => item.content || []).find(item => item.type === 'output_text')?.text;
 
   if (!text) {
     throw new Error('Empty response received from OpenAI API');
   }
 
-  return text;
+  const webSources = (data.output || []).filter(item => item.type === 'web_search_call')
+    .flatMap(item => item.action?.sources || []).map(source => ({
+      title: source.title || 'Web source', url: source.url || '',
+    })).filter(source => /^https:\/\//i.test(source.url));
+  return { text, webSources };
 }
 
 /**
@@ -75,9 +74,8 @@ export async function testOpenAIKey(apiKey, model = DEFAULT_MODEL) {
   try {
     const testBody = {
       model: model,
-      messages: [{ role: 'user', content: 'Respond with JSON: {"status":"ok"}' }],
-      response_format: { type: 'json_object' },
-      max_tokens: 15,
+      input: 'Respond with JSON: {"status":"ok"}',
+      tools: [{ type: 'web_search' }],
     };
     const res = await fetch(API_ENDPOINT, {
       method: 'POST',

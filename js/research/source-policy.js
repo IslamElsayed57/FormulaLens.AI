@@ -178,7 +178,15 @@ export function validateEvidenceReferences(aiReferences, retrievedEvidencePackag
       continue;
     }
 
-    // If the reference claims to be from an approved source, verify it
+    // Provider web-search results are accepted only when the exact HTTPS URL
+    // was returned by that provider during this analysis.
+    const searchedUrls = new Set((retrievedEvidencePackage?.webSearchSources || []).map(source => source.url));
+    if (ref.sourceUrl && (!/^https:\/\//i.test(ref.sourceUrl) || !searchedUrls.has(ref.sourceUrl))) {
+      mismatches.push({ ref, reason: 'Source URL was not returned by this analysis web search' });
+      continue;
+    }
+
+    // If a source ID is supplied, it must belong to the local approved registry.
     if (ref.sourceId) {
       const approvedIds = getApprovedSourceIds();
       if (!approvedIds.includes(ref.sourceId)) {

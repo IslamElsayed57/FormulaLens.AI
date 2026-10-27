@@ -63,8 +63,8 @@ export async function analyzeWithGemini(promptData, options = {}) {
         generationConfig: {
           temperature: 0.1,
           topP: 0.95,
-          responseMimeType: 'application/json',
-        }
+        },
+        tools: [{ google_search: {} }],
       };
 
       const response = await fetch(endpoint, {
@@ -99,7 +99,7 @@ export async function analyzeWithGemini(promptData, options = {}) {
         localStorage.setItem('fl_model_gemini', model);
       }
 
-      return text;
+      return { text, webSources: extractGroundingSources(data) };
     } catch (err) {
       if (err.name === 'AbortError') throw err;
       lastError = err;
@@ -107,6 +107,18 @@ export async function analyzeWithGemini(promptData, options = {}) {
   }
 
   throw lastError || new Error('Failed to connect to Google Gemini API');
+}
+
+function extractGroundingSources(data) {
+  const metadata = data?.candidates?.[0]?.groundingMetadata;
+  const chunks = metadata?.groundingChunks || [];
+  const supports = metadata?.groundingSupports || [];
+  return chunks.map((chunk, index) => {
+    const source = chunk.web || chunk.retrievedContext || {};
+    const snippets = supports.filter(item => item.groundingChunkIndices?.includes(index))
+      .map(item => item.segment?.text).filter(Boolean);
+    return { title: source.title || 'Web source', url: source.uri || source.url || '', snippets };
+  }).filter(source => /^https:\/\//i.test(source.url));
 }
 
 /**

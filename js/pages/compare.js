@@ -277,6 +277,7 @@ export function renderCompare(container) {
         }
         for (const product of productsToCompare) {
           product.aiReviewStatus = researchAI?.isLocalFallback ? 'unavailable' : researchAI ? 'completed' : 'unavailable';
+          product.aiWebSearchSources = researchAI?.webSearchSources || [];
           product.unmatchedIngredients = (product.unmatchedIngredients || []).map(item => {
             const target = normalizeIngredientName(item.cleanName || item.rawName);
             const result = (researchAI?.ingredientAnalysis || []).find(candidate =>
@@ -837,7 +838,7 @@ function renderComparisonResults(container, comp, isAr, selectedProfiles = []) {
       subtitle: isAr ? `${product.unmatchedIngredients.length} مكون قيد البحث` : `${product.unmatchedIngredients.length} unlisted ingredients searched`,
       badge: isAr ? 'نتائج أولية' : 'Research leads',
       badgeType: 'amber',
-      content: `<div class="comparison-research-list">${rows}</div>`,
+      content: `<div class="comparison-research-list">${rows}</div>${product.aiWebSearchSources?.length ? `<div class="mt-2"><strong class="text-xs">${isAr ? 'مصادر بحث الويب' : 'Web search sources'}</strong><ul class="literature-links">${product.aiWebSearchSources.map(source => `<li><a href="${escapeHTML(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHTML(source.title)}</a></li>`).join('')}</ul></div>` : ''}`,
     });
   });
 
