@@ -431,6 +431,7 @@ function renderAnalysisResults(container, report, isAr, selectedProfiles = []) {
     content: `
       <div class="insights-content">
         <p class="summary-paragraph">${ai.summary || ''}</p>
+        ${ai.isLocalFallback && ai.warnings?.length ? `<p class="badge badge-amber mt-2">${escapeHTML(ai.warnings[0].message)}</p>` : ''}
         <div class="actives-chips-row">
           <span class="text-xs text-muted font-bold">${isAr ? 'المكونات الفعالة البارزة:' : 'Key Active Drivers:'}</span>
           ${activesList.map(a => `<span class="badge badge-mint">${a}</span>`).join('')}
@@ -591,7 +592,7 @@ function renderAnalysisResults(container, report, isAr, selectedProfiles = []) {
         <td class="col-preg" title="${escapeHTML(assessment.pregnancy?.note || '')}">${pregnancyCell}${isPregnant && assessment.pregnancy?.note ? `<small class="text-muted">${escapeHTML(assessment.pregnancy.note)}</small>` : ''}</td>
         <td class="col-skin" title="${escapeHTML(selectedAssessment[0]?.note || '')}">${skinCell}${selectedAssessment[0]?.note ? `<small class="text-muted">${escapeHTML(selectedAssessment[0].note)}</small>` : ''}</td>
         <td class="col-action">
-          <span class="badge badge-${hasCitedAssessment ? 'mint' : 'neutral'}">${hasCitedAssessment ? assessmentBadge : aiUnavailable ? (isAr ? 'لم يتوفر تقييم مدعوم بالمصادر' : 'No source-backed assessment available') : (researchHits.length ? (isAr ? 'أدلة أولية للمراجعة' : 'Research leads to review') : lookupFailed ? (isAr ? 'فشل البحث؛ البيانات غير متاحة' : 'Search failed; no evidence available') : (isAr ? 'تم البحث دون نتيجة مناسبة' : 'Search returned no suitable records'))}</span>
+          <span class="badge badge-${hasCitedAssessment ? 'mint' : 'neutral'}">${hasCitedAssessment ? assessmentBadge : aiUnavailable ? (isAr ? 'تحليل AI غير متصل' : 'AI analysis unavailable') : (researchHits.length ? (isAr ? 'أدلة أولية للمراجعة' : 'Research leads to review') : lookupFailed ? (isAr ? 'فشل البحث؛ البيانات غير متاحة' : 'Search failed; no evidence available') : (isAr ? 'تم البحث دون نتيجة مناسبة' : 'Search returned no suitable records'))}</span>
           ${researchLinks.length ? `<div class="text-xs literature-links">${researchLinks.join('<br>')}<br><span class="text-muted">${isAr ? 'نتائج أولية ذُكر فيها اسم المكوّن صراحةً؛ تحتاج مراجعة ولا تثبت التقييم وحدها.' : 'Preliminary records that explicitly mention the ingredient; review required and not sufficient to establish an assessment.'}</span></div>` : `<div class="text-xs text-muted">${lookupFailed ? (isAr ? 'تعذر الوصول إلى مصادر البحث.' : 'Could not reach research sources.') : (isAr ? 'لم تُعثر على دراسة تذكر هذا المكوّن صراحةً؛ تظل بياناته غير معلومة.' : 'No retrieved study explicitly mentions this ingredient; its fields remain unknown.')}</div>`}
           <div class="text-xs official-source-links"><span class="text-muted">${isAr ? 'روابط تحقق (لم تُستعلم آلياً):' : 'Manual reference links (not queried):'}</span> ${officialSourceLinkHTML}</div>
         </td>

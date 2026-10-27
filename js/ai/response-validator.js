@@ -139,6 +139,7 @@ export function validateAIResponse(rawResponse, evidencePackage = null) {
         item.evidenceAssessment,
         item.name || item.inciName,
         evidencePackage,
+        parsed.evidenceReferences,
       );
       const sourceIds = new Set(getArticlesForIngredient(evidencePackage, item.name || item.inciName).map(article => article.sourceId));
       item.sourceIds = item.sourceIds.filter(sourceId => sourceIds.has(sourceId));
@@ -222,9 +223,15 @@ function getArticlesForIngredient(evidencePackage, name) {
   return key ? evidencePackage.literatureResearch.byIngredient[key] || [] : [];
 }
 
-function validateEvidenceAssessment(value, name, evidencePackage) {
+function validateEvidenceAssessment(value, name, evidencePackage, evidenceReferences = []) {
   const articles = getArticlesForIngredient(evidencePackage, name);
   const validRecordIds = new Set(articles.map(article => article.sourceRecordId).filter(Boolean));
+  const targetName = normalizeName(name);
+  const webUrlsForIngredient = new Set((evidenceReferences || [])
+    .filter(ref => normalizeName(ref?.ingredient) === targetName && ref?.sourceUrl
+      && evidencePackage?.webSearchSources?.some(source => source.url === ref.sourceUrl))
+    .map(ref => ref.sourceUrl));
+  for (const url of webUrlsForIngredient) validRecordIds.add(url);
   const validProfiles = new Set(evidencePackage?.skinProfiles || []);
   const claims = Array.isArray(value?.functions) ? value.functions.slice(0, 8).map(claim => {
     const sourceRecordIds = Array.isArray(claim?.sourceRecordIds)

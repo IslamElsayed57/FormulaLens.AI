@@ -76,7 +76,14 @@ export async function runAIAnalysis(evidencePackage, options = {}) {
 
   // If no provider or explicitly requested local, generate deterministic scientific synthesis
   if (!provider) {
-    return synthesizeLocalAnalysis(evidencePackage, { ...options, lang });
+    const fallbackResult = synthesizeLocalAnalysis(evidencePackage, { ...options, lang });
+    fallbackResult.warnings.push({
+      type: 'AI_PROVIDER_NOT_CONFIGURED',
+      message: lang === 'ar'
+        ? 'البحث والتحليل بالذكاء الاصطناعي غير متاحين: لم يتم اختيار مزود بمفتاح API محفوظ. افتح الإعدادات ومفاتيح الذكاء الاصطناعي واتصل بمزود لتفعيل بحث الويب.'
+        : 'AI web research is unavailable because no provider API key is configured. Open Settings & AI Keys and connect a provider to enable web search.',
+    });
+    return fallbackResult;
   }
 
   // Build the unified evidence-based prompt

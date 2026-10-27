@@ -105,7 +105,7 @@ ${formatLiteratureResearch(evidencePackage.literatureResearch)}
 ${conflicts.length > 0 ? `KNOWN CONFLICTS:\n${conflicts.map(c => `- ${c}`).join('\n')}` : ''}
 
 INSTRUCTIONS:
-Search independently for every unmatched ingredient using web search when available, and use relevant sources from any domain. Return one ingredientAnalysis item for every unmatched ingredient, using its exact input name. Search results are leads: check that the source actually concerns the named ingredient and that its content supports the claim; do not infer ingredient identity from a vague text match or claim a source is verified. Cite supplied records with their exact sourceRecordIds. For web sources, include exact source title and URL in evidenceReferences, with the ingredient and claim they support. PubChem records may support chemical identity or formula only, not cosmetic safety, comedogenicity, sensitization, pregnancy safety, or skin suitability. Citation metadata without an abstract or accessible supporting content does not support specific safety claims. If reliable direct evidence is absent for a field, use unknown/null. Never infer a 0–5 comedogenicity rating from qualitative prose. Never call an ingredient pregnancy-safe based only on absence of reported harm; require direct ingredient-specific pregnancy evidence, otherwise use unknown. Skin-profile suitability requires direct evidence relevant to that profile; otherwise unknown. A single case report may document a possible reaction but does not establish population-level sensitization risk. Unknown ingredients remain pending research. Generate the structured JSON response.
+Search independently for every unmatched ingredient using web search when available, and use relevant sources from any domain. Return one ingredientAnalysis item for every unmatched ingredient, using its exact input name. Search results are leads: check that the source actually concerns the named ingredient and that its content supports the claim; do not infer ingredient identity from a vague text match or claim a source is verified. Cite supplied records with their exact sourceRecordIds. For web sources, include exact source title and URL in evidenceReferences, with the exact ingredient name and supported claim. In evidenceAssessment sourceRecordIds, use supplied record IDs or exact HTTPS URLs from your own cited web sources; never invent IDs or URLs. PubChem records may support chemical identity or formula only, not cosmetic safety, comedogenicity, sensitization, pregnancy safety, or skin suitability. Citation metadata without an abstract or accessible supporting content does not support specific safety claims. If reliable direct evidence is absent for a field, use unknown/null. Never infer a 0–5 comedogenicity rating from qualitative prose. Never call an ingredient pregnancy-safe based only on absence of reported harm; require direct ingredient-specific pregnancy evidence, otherwise use unknown. Skin-profile suitability requires direct evidence relevant to that profile; otherwise unknown. A single case report may document a possible reaction but does not establish population-level sensitization risk. Unknown ingredients remain pending research. Generate the structured JSON response.
 
 REQUIRED JSON OUTPUT SCHEMA:
 {
@@ -123,7 +123,7 @@ REQUIRED JSON OUTPUT SCHEMA:
       "aiObservations": "string or null — label as unverified if AI-generated",
       "sourceIds": ["string — from evidence package only"],
       "evidenceAssessment": {
-        "functions": [{"value": "string", "sourceRecordIds": ["exact source record IDs shown above"]}],
+        "functions": [{"value": "string", "sourceRecordIds": ["exact supplied source record IDs or exact cited HTTPS source URLs"]}],
         "comedogenicity": {"rating": "integer 0-5 or null; only if a cited source explicitly reports this scale", "note": "string or null", "sourceRecordIds": []},
         "sensitization": {"level": "low|moderate|high|unknown", "note": "string or null", "sourceRecordIds": []},
         "pregnancy": {"status": "evidence_of_safety|evidence_of_concern|unknown", "note": "string or null", "sourceRecordIds": []},
@@ -158,6 +158,7 @@ REQUIRED JSON OUTPUT SCHEMA:
       "sourceId": "string or null — use a real ID only when supplied",
       "sourceName": "string",
       "sourceUrl": "string — exact HTTPS URL actually retrieved",
+      "ingredient": "string — exact ingredient name supported by this source",
       "ingredientId": "string or null",
       "claim": "string — what this source supports",
       "evidenceCategory": "string"
