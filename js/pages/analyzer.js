@@ -540,10 +540,21 @@ function renderAnalysisResults(container, report, isAr, selectedProfiles = []) {
     );
     const assessmentBadge = isAr ? 'تقييم أولي مرتبط بمصدر' : 'Source-linked preliminary assessment';
     const aiUnavailable = report.aiInsights?.isLocalFallback;
-    const researchHits = report.literatureResearch?.byIngredient?.[rawDisplayName] || [];
-    const lookupFailed = report.literatureResearch?.errors?.some(error => !error.ingredientName || error.ingredientName.toLowerCase() === String(rawDisplayName).toLowerCase());
+    const normalizeEvidenceName = value => String(value || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    const targetEvidenceName = normalizeEvidenceName(rawDisplayName);
+    const searchedWebUrls = new Set((ai.webSearchSources || []).map(source => source.url));
+    const aiEvidenceHits = (ai.evidenceReferences || [])
+      .filter(ref => normalizeEvidenceName(ref.ingredient) === targetEvidenceName && searchedWebUrls.has(ref.sourceUrl))
+      .map(ref => ({ sourceId: 'web_search', sourceUrl: ref.sourceUrl, title: ref.sourceName || ref.claim || ref.sourceUrl }));
+    const aiGroundedHits = (ai.webSearchSources || []).filter(source =>
+      (source.snippets || []).some(snippet => normalizeEvidenceName(snippet).includes(targetEvidenceName))
+    ).map(source => ({ sourceId: 'web_search', sourceUrl: source.url, title: source.title }));
+    const researchHits = [...(report.literatureResearch?.byIngredient?.[rawDisplayName] || []), ...aiEvidenceHits, ...aiGroundedHits];
+    const lookupFailed = !aiEvidenceHits.length && report.literatureResearch?.errors?.some(error => !error.ingredientName || error.ingredientName.toLowerCase() === String(rawDisplayName).toLowerCase());
     const researchLinks = researchHits.filter(hit => hit.sourceId !== 'pubchem').map(hit => {
-      const href = /^https:\/\/(?:pubmed\.ncbi\.nlm\.nih\.gov|europepmc\.org|doi\.org)\//i.test(hit.sourceUrl || '') ? hit.sourceUrl : '';
+      const href = hit.sourceId === 'web_search'
+        ? (/^https:\/\//i.test(hit.sourceUrl || '') ? hit.sourceUrl : '')
+        : (/^https:\/\/(?:pubmed\.ncbi\.nlm\.nih\.gov|europepmc\.org|doi\.org)\//i.test(hit.sourceUrl || '') ? hit.sourceUrl : '');
       return href ? `<a href="${escapeHTML(href)}" target="_blank" rel="noopener noreferrer">${escapeHTML(hit.title)}</a>` : '';
     }).filter(Boolean);
     const comedoCell = Number.isInteger(comedoRating)
@@ -592,7 +603,7 @@ function renderAnalysisResults(container, report, isAr, selectedProfiles = []) {
         <td class="col-preg" title="${escapeHTML(assessment.pregnancy?.note || '')}">${pregnancyCell}${isPregnant && assessment.pregnancy?.note ? `<small class="text-muted">${escapeHTML(assessment.pregnancy.note)}</small>` : ''}</td>
         <td class="col-skin" title="${escapeHTML(selectedAssessment[0]?.note || '')}">${skinCell}${selectedAssessment[0]?.note ? `<small class="text-muted">${escapeHTML(selectedAssessment[0].note)}</small>` : ''}</td>
         <td class="col-action">
-          <span class="badge badge-${hasCitedAssessment ? 'mint' : 'neutral'}">${hasCitedAssessment ? assessmentBadge : aiUnavailable ? (isAr ? 'تحليل AI غير متصل' : 'AI analysis unavailable') : (researchHits.length ? (isAr ? 'أدلة أولية للمراجعة' : 'Research leads to review') : lookupFailed ? (isAr ? 'فشل البحث؛ البيانات غير متاحة' : 'Search failed; no evidence available') : (isAr ? 'تم البحث دون نتيجة مناسبة' : 'Search returned no suitable records'))}</span>
+          <span class="badge badge-${hasCitedAssessment ? 'mint' : 'neutral'}">${hasCitedAssessment ? assessmentBadge : aiUnavailable ? (isAr ? 'تحليل AI غير متصل' : 'AI analysis unavailable') : (researchHits.length ? (isAr ? 'أدلة أولية للمراجعة' : 'Research leads to review') : ai.webSearchSources?.length ? (isAr ? 'بحث AI دون مصدر مرتبط بهذا المكوّن' : 'AI search found no source linked to this ingredient') : lookupFailed ? (isAr ? 'فشل البحث؛ البيانات غير متاحة' : 'Search failed; no evidence available') : (isAr ? 'تم البحث دون نتيجة مناسبة' : 'Search returned no suitable records'))}</span>
           ${researchLinks.length ? `<div class="text-xs literature-links">${researchLinks.join('<br>')}<br><span class="text-muted">${isAr ? 'نتائج أولية ذُكر فيها اسم المكوّن صراحةً؛ تحتاج مراجعة ولا تثبت التقييم وحدها.' : 'Preliminary records that explicitly mention the ingredient; review required and not sufficient to establish an assessment.'}</span></div>` : `<div class="text-xs text-muted">${lookupFailed ? (isAr ? 'تعذر الوصول إلى مصادر البحث.' : 'Could not reach research sources.') : (isAr ? 'لم تُعثر على دراسة تذكر هذا المكوّن صراحةً؛ تظل بياناته غير معلومة.' : 'No retrieved study explicitly mentions this ingredient; its fields remain unknown.')}</div>`}
           <div class="text-xs official-source-links"><span class="text-muted">${isAr ? 'روابط تحقق (لم تُستعلم آلياً):' : 'Manual reference links (not queried):'}</span> ${officialSourceLinkHTML}</div>
         </td>

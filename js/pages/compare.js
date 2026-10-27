@@ -278,6 +278,7 @@ export function renderCompare(container) {
         for (const product of productsToCompare) {
           product.aiReviewStatus = researchAI?.isLocalFallback ? 'unavailable' : researchAI ? 'completed' : 'unavailable';
           product.aiWebSearchSources = researchAI?.webSearchSources || [];
+          product.aiEvidenceReferences = researchAI?.evidenceReferences || [];
           product.aiReviewWarnings = researchAI?.isLocalFallback ? researchAI.warnings || [] : [];
           product.unmatchedIngredients = (product.unmatchedIngredients || []).map(item => {
             const target = normalizeIngredientName(item.cleanName || item.rawName);
@@ -809,10 +810,20 @@ function renderComparisonResults(container, comp, isAr, selectedProfiles = []) {
     const research = product.literatureResearch || {};
     const rows = product.unmatchedIngredients.map(item => {
       const name = item.cleanName || item.rawName || '';
-      const hits = research.byIngredient?.[name] || [];
-      const failed = research.errors?.some(error => !error.ingredientName || error.ingredientName.toLowerCase() === name.toLowerCase());
+      const targetName = normalizeIngredientName(name);
+      const searchedWebUrls = new Set((product.aiWebSearchSources || []).map(source => source.url));
+      const aiHits = (product.aiEvidenceReferences || [])
+        .filter(ref => normalizeIngredientName(ref.ingredient) === targetName && searchedWebUrls.has(ref.sourceUrl))
+        .map(ref => ({ sourceId: 'web_search', sourceUrl: ref.sourceUrl, title: ref.sourceName || ref.claim || ref.sourceUrl }));
+      const groundedHits = (product.aiWebSearchSources || []).filter(source =>
+        (source.snippets || []).some(snippet => normalizeIngredientName(snippet).includes(targetName))
+      ).map(source => ({ sourceId: 'web_search', sourceUrl: source.url, title: source.title }));
+      const hits = [...(research.byIngredient?.[name] || []), ...aiHits, ...groundedHits];
+      const failed = !aiHits.length && research.errors?.some(error => !error.ingredientName || error.ingredientName.toLowerCase() === name.toLowerCase());
       const hitLinks = hits.filter(hit => hit.sourceId !== 'pubchem').map(hit => {
-        const href = /^https:\/\/(?:pubmed\.ncbi\.nlm\.nih\.gov|europepmc\.org|doi\.org)\//i.test(hit.sourceUrl || '') ? hit.sourceUrl : '';
+        const href = hit.sourceId === 'web_search'
+          ? (/^https:\/\//i.test(hit.sourceUrl || '') ? hit.sourceUrl : '')
+          : (/^https:\/\/(?:pubmed\.ncbi\.nlm\.nih\.gov|europepmc\.org|doi\.org)\//i.test(hit.sourceUrl || '') ? hit.sourceUrl : '');
         return href ? `<li><a href="${escapeHTML(href)}" target="_blank" rel="noopener noreferrer">${escapeHTML(hit.title)}</a> <span class="text-muted">${escapeHTML(hit.year || '')} ${escapeHTML(hit.journal || '')}</span></li>` : '';
       }).filter(Boolean).join('');
       const query = encodeURIComponent(name);

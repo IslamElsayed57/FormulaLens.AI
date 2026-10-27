@@ -11,6 +11,7 @@ import { compareProducts } from '../js/analysis/comparison.js';
 import { buildAnalysisPrompt } from '../js/ai/prompt-builder.js';
 import { validateAIResponse } from '../js/ai/response-validator.js';
 import { filterRelevantArticles, hasIngredientMention, limitResearchResults } from '../js/research/literature-search.js';
+import { analyzeWithGemini } from '../js/ai/providers/gemini.js';
 
 let passed = 0;
 let failed = 0;
@@ -147,6 +148,56 @@ const sampleValidAI = JSON.stringify({
 const valRes = validateAIResponse(sampleValidAI);
 assert(valRes.result !== null, 'Valid AI response parsed and validated');
 assert(valRes.errors.length === 0, 'No schema errors in valid response');
+
+const webEvidenceUrl = 'https://example.org/cosmetic-ingredient-review';
+const webEvidenceResponse = {
+  summary: 'Preliminary review.',
+  ingredientAnalysis: [{
+    name: 'Sample Extract', inciName: 'Sample Extract', matchedInDatabase: false,
+    evidenceAssessment: {
+      functions: [{ value: 'Skin conditioning', sourceRecordIds: [webEvidenceUrl] }],
+      comedogenicity: { rating: null, note: null, sourceRecordIds: [] },
+      sensitization: { level: 'unknown', note: null, sourceRecordIds: [] },
+      pregnancy: { status: 'unknown', note: null, sourceRecordIds: [] },
+      skinSuitability: [],
+    },
+  }],
+  formulationInsights: [], warnings: [], limitations: [],
+  evidenceReferences: [{ sourceId: null, sourceName: 'Review', sourceUrl: webEvidenceUrl, ingredient: 'Sample Extract', claim: 'Skin conditioning', evidenceCategory: 'function' }],
+};
+const webValidation = validateAIResponse(webEvidenceResponse, {
+  unmatchedIngredients: [{ rawName: 'Sample Extract', cleanName: 'Sample Extract' }],
+  literatureResearch: { byIngredient: {} }, skinProfiles: [],
+  webSearchSources: [{ title: 'Review', url: webEvidenceUrl }],
+});
+assert(webValidation.result?.ingredientAnalysis[0]?.evidenceAssessment.functions[0]?.sourceRecordIds.includes(webEvidenceUrl), 'Accepts exact provider web-search citations in ingredient evidence assessments');
+assert(webValidation.result?.evidenceReferences[0]?.sourceUrl === webEvidenceUrl, 'Keeps provider URLs only when returned by the current web search');
+assert(!promptObj.systemInstruction.includes('PROVIDED EVIDENCE PACKAGE ONLY'), 'Does not restrict the model to the preloaded source package');
+
+const originalFetch = globalThis.fetch;
+const originalLocalStorage = globalThis.localStorage;
+const fakeStorage = new Map([['fl_api_gemini', 'unit-test-key']]);
+globalThis.localStorage = { getItem: key => fakeStorage.get(key) || null, setItem: (key, value) => fakeStorage.set(key, value) };
+const geminiCalls = [];
+globalThis.fetch = async (url, options = {}) => {
+  geminiCalls.push({ url: String(url), options });
+  if (String(url).includes('/v1beta/models?')) {
+    return new Response(JSON.stringify({ models: [{ name: 'models/gemini-3.8-flash', supportedGenerationMethods: ['generateContent'] }] }), { status: 200 });
+  }
+  return new Response(JSON.stringify({
+    candidates: [{
+      content: { parts: [{ text: '{"summary":"ok"}' }] },
+      groundingMetadata: { groundingChunks: [{ web: { title: 'Test source', uri: 'https://example.org/source' } }] },
+    }],
+  }), { status: 200 });
+};
+const geminiTestResult = await analyzeWithGemini({ systemInstruction: 'system', userMessage: 'search' });
+assert(geminiCalls.some(call => call.url.includes('/gemini-3.8-flash:generateContent')), 'Discovers and calls an available Gemini generateContent model');
+assert(geminiCalls.some(call => call.url.includes(':generateContent') && JSON.parse(call.options.body).tools?.[0]?.google_search), 'Enables Google Search grounding in the Gemini request');
+assert(geminiTestResult.webSources?.[0]?.url === 'https://example.org/source', 'Extracts Gemini grounding sources from the response');
+globalThis.fetch = originalFetch;
+if (originalLocalStorage === undefined) delete globalThis.localStorage;
+else globalThis.localStorage = originalLocalStorage;
 
 console.log(`\n===========================================`);
 console.log(`Test Results: ${passed} Passed, ${failed} Failed`);
