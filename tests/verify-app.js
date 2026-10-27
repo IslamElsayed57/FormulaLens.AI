@@ -10,6 +10,7 @@ import { calculateFormulaScore } from '../js/analysis/safety-scoring.js';
 import { compareProducts } from '../js/analysis/comparison.js';
 import { buildAnalysisPrompt } from '../js/ai/prompt-builder.js';
 import { validateAIResponse } from '../js/ai/response-validator.js';
+import { filterRelevantArticles, hasIngredientMention, limitResearchResults } from '../js/research/literature-search.js';
 
 let passed = 0;
 let failed = 0;
@@ -98,6 +99,28 @@ assert(compRes3.uniquePerProduct.length === 3, 'Calculated exclusive ingredients
 
 // 5. PROMPT & VALIDATION TEST
 console.log('\n5. Testing Shared Prompt Builder & Validator:');
+const relevantAveneStudy = {
+  sourceId: 'europe_pmc',
+  title: 'Effect of AVENE thermal spring water on skin barrier properties',
+  abstract: '',
+};
+const unrelatedTopicalStudy = {
+  sourceId: 'europe_pmc',
+  title: 'Mechanistic Review of Topical Therapies Targeting Dermal Fibroblasts',
+  abstract: 'A general review of skin aging and rejuvenation.',
+};
+const relevantPegStudy = {
+  sourceId: 'pubmed',
+  title: 'Allergic contact dermatitis caused by PEG-22/Dodecyl Glycol Copolymer',
+  abstract: '',
+};
+assert(hasIngredientMention(relevantAveneStudy, 'AVENE THERMAL SPRING'), 'Matches an ingredient explicitly named in a study title');
+assert(!hasIngredientMention(unrelatedTopicalStudy, 'AVENE THERMAL SPRING'), 'Rejects topical studies that do not name the ingredient');
+assert(hasIngredientMention(relevantPegStudy, 'PEG:22/DODECYL GLYCOL COPOLYMER'), 'Matches punctuation variants of the same ingredient name');
+assert(filterRelevantArticles([relevantAveneStudy, unrelatedTopicalStudy], 'AVENE THERMAL SPRING').length === 1, 'Shows only ingredient-relevant records');
+assert(!hasIngredientMention({ title: 'Water for injection quality standards' }, 'Water'), 'Rejects generic water records without cosmetic or skin context');
+assert(limitResearchResults([1, 2, 3, 4].map(id => ({ sourceRecordId: `PMID:${id}` }))).length === 3, 'Caps results at three records per ingredient');
+
 const promptObj = buildAnalysisPrompt({
   productName: 'Test Serum',
   matchedIngredients: mockMatched,

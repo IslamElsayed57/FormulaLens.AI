@@ -540,7 +540,7 @@ function renderAnalysisResults(container, report, isAr, selectedProfiles = []) {
     const aiUnavailable = report.aiInsights?.isLocalFallback;
     const researchHits = report.literatureResearch?.byIngredient?.[rawDisplayName] || [];
     const lookupFailed = report.literatureResearch?.errors?.some(error => !error.ingredientName || error.ingredientName.toLowerCase() === String(rawDisplayName).toLowerCase());
-    const researchLinks = researchHits.map(hit => {
+    const researchLinks = researchHits.filter(hit => hit.sourceId !== 'pubchem').map(hit => {
       const href = /^https:\/\/(?:pubmed\.ncbi\.nlm\.nih\.gov|europepmc\.org|doi\.org)\//i.test(hit.sourceUrl || '') ? hit.sourceUrl : '';
       return href ? `<a href="${escapeHTML(href)}" target="_blank" rel="noopener noreferrer">${escapeHTML(hit.title)}</a>` : '';
     }).filter(Boolean);
@@ -591,7 +591,7 @@ function renderAnalysisResults(container, report, isAr, selectedProfiles = []) {
         <td class="col-skin" title="${escapeHTML(selectedAssessment[0]?.note || '')}">${skinCell}${selectedAssessment[0]?.note ? `<small class="text-muted">${escapeHTML(selectedAssessment[0].note)}</small>` : ''}</td>
         <td class="col-action">
           <span class="badge badge-${hasCitedAssessment ? 'mint' : 'neutral'}">${hasCitedAssessment ? assessmentBadge : aiUnavailable ? (isAr ? 'لم يتوفر تقييم مدعوم بالمصادر' : 'No source-backed assessment available') : (researchHits.length ? (isAr ? 'أدلة أولية للمراجعة' : 'Research leads to review') : lookupFailed ? (isAr ? 'فشل البحث؛ البيانات غير متاحة' : 'Search failed; no evidence available') : (isAr ? 'تم البحث دون نتيجة مناسبة' : 'Search returned no suitable records'))}</span>
-          ${researchLinks.length ? `<div class="text-xs literature-links">${researchLinks.join('<br>')}<br><span class="text-muted">${isAr ? 'نتائج أولية — تحتاج مراجعة، ولم تُعتمد كمكوّن موثق.' : 'Preliminary leads; review required before verification.'}</span></div>` : `<div class="text-xs text-muted">${lookupFailed ? (isAr ? 'تعذر الوصول إلى Europe PMC.' : 'Could not reach Europe PMC.') : (isAr ? 'لا توجد نتائج مناسبة في Europe PMC.' : 'No relevant Europe PMC results.')}</div>`}
+          ${researchLinks.length ? `<div class="text-xs literature-links">${researchLinks.join('<br>')}<br><span class="text-muted">${isAr ? 'نتائج أولية ذُكر فيها اسم المكوّن صراحةً؛ تحتاج مراجعة ولا تثبت التقييم وحدها.' : 'Preliminary records that explicitly mention the ingredient; review required and not sufficient to establish an assessment.'}</span></div>` : `<div class="text-xs text-muted">${lookupFailed ? (isAr ? 'تعذر الوصول إلى مصادر البحث.' : 'Could not reach research sources.') : (isAr ? 'لم تُعثر على دراسة تذكر هذا المكوّن صراحةً؛ تظل بياناته غير معلومة.' : 'No retrieved study explicitly mentions this ingredient; its fields remain unknown.')}</div>`}
           <div class="text-xs official-source-links"><span class="text-muted">${isAr ? 'روابط تحقق (لم تُستعلم آلياً):' : 'Manual reference links (not queried):'}</span> ${officialSourceLinkHTML}</div>
         </td>
       </tr>

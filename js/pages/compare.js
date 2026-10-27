@@ -809,7 +809,7 @@ function renderComparisonResults(container, comp, isAr, selectedProfiles = []) {
       const name = item.cleanName || item.rawName || '';
       const hits = research.byIngredient?.[name] || [];
       const failed = research.errors?.some(error => !error.ingredientName || error.ingredientName.toLowerCase() === name.toLowerCase());
-      const hitLinks = hits.map(hit => {
+      const hitLinks = hits.filter(hit => hit.sourceId !== 'pubchem').map(hit => {
         const href = /^https:\/\/(?:pubmed\.ncbi\.nlm\.nih\.gov|europepmc\.org|doi\.org)\//i.test(hit.sourceUrl || '') ? hit.sourceUrl : '';
         return href ? `<li><a href="${escapeHTML(href)}" target="_blank" rel="noopener noreferrer">${escapeHTML(hit.title)}</a> <span class="text-muted">${escapeHTML(hit.year || '')} ${escapeHTML(hit.journal || '')}</span></li>` : '';
       }).filter(Boolean).join('');
@@ -823,7 +823,7 @@ function renderComparisonResults(container, comp, isAr, selectedProfiles = []) {
 
       return `<article class="comparison-research-item">
         <h4>${escapeHTML(name)} <span class="badge badge-neutral">${isAr ? 'غير مسجل محلياً' : 'Not in local database'}</span></h4>
-        ${hitLinks ? `<ul class="literature-links">${hitLinks}</ul><p class="text-xs text-muted">${isAr ? 'نتائج بحث أولية؛ تحتاج مراجعة ولا تثبت هوية المكوّن وحدها.' : 'Preliminary literature leads; review required and not sufficient to verify ingredient identity.'}</p>` : `<p class="text-xs text-muted">${failed ? (isAr ? 'تعذر الاتصال بمصدر الأدبيات.' : 'Could not reach the literature source.') : (isAr ? 'لم تظهر نتائج مناسبة في Europe PMC.' : 'No relevant Europe PMC results.')}</p>`}
+        ${hitLinks ? `<ul class="literature-links">${hitLinks}</ul><p class="text-xs text-muted">${isAr ? 'نتائج أولية ذُكر فيها اسم المكوّن صراحةً؛ تحتاج مراجعة ولا تثبت هوية المكوّن أو سلامته وحدها.' : 'Preliminary records that explicitly mention the ingredient; review required and not sufficient to establish identity or safety.'}</p>` : `<p class="text-xs text-muted">${failed ? (isAr ? 'تعذر الوصول إلى مصادر البحث.' : 'Could not reach research sources.') : (isAr ? 'لم تُعثر على دراسة تذكر هذا المكوّن صراحةً؛ تظل بياناته غير معلومة.' : 'No retrieved study explicitly mentions this ingredient; its fields remain unknown.')}</p>`}
         <p class="text-xs official-source-links"><span class="text-muted">${isAr ? 'روابط تحقق (لم تُستعلم آلياً):' : 'Manual reference links (not queried):'}</span> ${officialLinks}</p>
       </article>`;
     }).join('');

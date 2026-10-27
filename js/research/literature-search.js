@@ -41,6 +41,40 @@ function cleanText(value, limit = 2400) {
   return typeof value === 'string' ? value.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, limit) : '';
 }
 
+function ingredientAliases(name) {
+  const aliases = new Set([name]);
+  const normalized = name.toLowerCase().replace(/[()\[\],]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (normalized) aliases.add(normalized);
+  const synonymGroups = [
+    [/^(water|aqua|aqua purificata|aqua purificatae|eau)$/i, ['water', 'aqua', 'aqua purificata', 'eau']],
+    [/^(dexpanthenol|panthenol)$/i, ['dexpanthenol', 'panthenol', 'provitamin b5']],
+    [/^avene thermal spring(?: water)?$/i, ['avene thermal spring water', 'avene thermal spring', 'thermal spring water']],
+  ];
+  for (const [pattern, values] of synonymGroups) if (pattern.test(normalized)) values.forEach(value => aliases.add(value));
+  return [...aliases].map(value => value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()).filter(value => value.length >= 4);
+}
+
+export function hasIngredientMention(article, ingredientName) {
+  const text = `${article.title || ''} ${article.abstract || ''}`
+    .toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').replace(/\s+/g, ' ').trim();
+  if (!text) return false;
+  const paddedText = ` ${text} `;
+  const matchingAlias = ingredientAliases(ingredientName).find(alias => paddedText.includes(` ${alias} `));
+  if (!matchingAlias) return false;
+  const genericAlias = ['water', 'aqua', 'glycerin', 'glycerol', 'panthenol'].includes(matchingAlias);
+  if (!genericAlias) return true;
+  return /\b(cosmetic|skin|dermal|topical|formulation|cream|lotion|emulsion|barrier|ingredient)\b/iu.test(text);
+}
+
+export function filterRelevantArticles(articles, ingredientName) {
+  return articles.filter(article => article.sourceId === 'pubchem' || hasIngredientMention(article, ingredientName));
+}
+
+export function limitResearchResults(articles) {
+  return [...new Map((articles || []).map(article => [article.sourceRecordId, article])).values()]
+    .slice(0, MAX_RESULTS_PER_INGREDIENT);
+}
+
 function articleUrl(article) {
   if (article.source === 'MED' && article.pmid) return `https://pubmed.ncbi.nlm.nih.gov/${encodeURIComponent(article.pmid)}/`;
   if (article.doi) return `https://doi.org/${article.doi.split('/').map(encodeURIComponent).join('/')}`;
@@ -48,7 +82,7 @@ function articleUrl(article) {
 }
 
 async function searchIngredient(name, signal) {
-  const query = `"${name.replace(/["\\]/g, ' ')}" AND (cosmetic OR skin OR dermal OR topical)`;
+  const query = `"${name.replace(/["\\]/g, ' ')}"`;
   const url = new URL(SEARCH_ENDPOINT);
   url.searchParams.set('query', query);
   url.searchParams.set('format', 'json');
@@ -101,7 +135,7 @@ async function searchIngredient(name, signal) {
 async function searchPubMed(name, signal) {
   const searchUrl = new URL(PUBMED_ENDPOINT);
   searchUrl.searchParams.set('db', 'pubmed');
-  searchUrl.searchParams.set('term', `"${name}" AND (cosmetic OR skin OR dermal OR topical)`);
+  searchUrl.searchParams.set('term', `"${name}"`);
   searchUrl.searchParams.set('retmode', 'json');
   searchUrl.searchParams.set('retmax', String(MAX_RESULTS_PER_INGREDIENT));
   const searchData = await fetchJson(searchUrl, signal, 'PubMed');
@@ -128,7 +162,7 @@ async function searchCrossref(name, signal) {
   const url = new URL(CROSSREF_ENDPOINT);
   url.searchParams.set('query.bibliographic', `${name} cosmetic skin dermal topical`);
   url.searchParams.set('rows', String(MAX_RESULTS_PER_INGREDIENT));
-  url.searchParams.set('select', 'DOI,title,author,container-title,published,published-print,published-online,type,URL');
+  url.searchParams.set('select', 'DOI,title,author,container-title,published,published-print,published-online,type,URL,abstract');
   const data = await fetchJson(url, signal, 'Crossref');
   return (data?.message?.items || []).map(item => {
     const parts = item.published?.['date-parts']?.[0] || item['published-print']?.['date-parts']?.[0] || item['published-online']?.['date-parts']?.[0] || [];
@@ -138,7 +172,7 @@ async function searchCrossref(name, signal) {
       sourceRecordId: doi ? `DOI:${doi}` : '', title: cleanText((item.title || [])[0], 500),
       authors: cleanText((item.author || []).map(author => [author.given, author.family].filter(Boolean).join(' ')).join(', '), 500),
       journal: cleanText((item['container-title'] || [])[0], 250), year: parts[0] ? String(parts[0]) : '',
-      doi, pmid: '', abstract: '', publicationType: cleanText(item.type, 100),
+      doi, pmid: '', abstract: cleanText(item.abstract, 2400), publicationType: cleanText(item.type, 100),
     };
   }).filter(item => item.title && item.sourceRecordId);
 }
@@ -196,8 +230,7 @@ export async function researchUnmatchedIngredients(unmatchedIngredients, { signa
       const name = namesToSearch[nextIndex++];
       onProgress?.(completed, namesToSearch.length, name);
     const cached = freshCache.get(name.toLowerCase().trim()) || [];
-    if (cached.length) {
-      byIngredient[name] = cached.map(record => ({
+    const cachedArticles = filterRelevantArticles(cached.map(record => ({
         sourceId: record.sourceId,
         sourceName: record.sourceName,
         sourceUrl: record.sourceUrl,
@@ -211,13 +244,16 @@ export async function researchUnmatchedIngredients(unmatchedIngredients, { signa
         abstract: record.abstract,
         publicationType: record.publicationType,
         cached: true,
-      }));
+      })), name);
+    if (cachedArticles.length) {
+      byIngredient[name] = limitResearchResults(cachedArticles);
       completed++;
       onProgress?.(completed, namesToSearch.length, name);
       continue;
     }
     try {
       let articles = [];
+      let usedFallback = false;
       try {
         articles = await searchIngredient(name, signal);
       } catch (primaryError) {
@@ -228,8 +264,15 @@ export async function researchUnmatchedIngredients(unmatchedIngredients, { signa
         const fallback = await searchFallbackSources(name, signal);
         articles = fallback.results;
         errors.push(...fallback.errors.map(error => ({ ingredientName: name, ...error })));
+        usedFallback = true;
       }
-      articles = [...new Map(articles.map(article => [article.sourceRecordId, article])).values()].slice(0, MAX_RESULTS_PER_INGREDIENT);
+      articles = filterRelevantArticles(articles, name);
+      if (!articles.length && !usedFallback) {
+        const fallback = await searchFallbackSources(name, signal);
+        articles = filterRelevantArticles(fallback.results, name);
+        errors.push(...fallback.errors.map(error => ({ ingredientName: name, ...error })));
+      }
+      articles = limitResearchResults(articles);
       byIngredient[name] = articles;
       for (const article of articles) {
         const record = {
