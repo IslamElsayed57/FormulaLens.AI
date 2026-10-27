@@ -182,7 +182,10 @@ const geminiCalls = [];
 globalThis.fetch = async (url, options = {}) => {
   geminiCalls.push({ url: String(url), options });
   if (String(url).includes('/v1beta/models?')) {
-    return new Response(JSON.stringify({ models: [{ name: 'models/gemini-3.8-flash', supportedGenerationMethods: ['generateContent'] }] }), { status: 200 });
+    return new Response(JSON.stringify({ models: [
+      { name: 'models/gemini-2.5-flash-preview-tts', supportedGenerationMethods: ['generateContent'] },
+      { name: 'models/gemini-3.8-flash', supportedGenerationMethods: ['generateContent'] },
+    ] }), { status: 200 });
   }
   return new Response(JSON.stringify({
     candidates: [{
@@ -193,6 +196,7 @@ globalThis.fetch = async (url, options = {}) => {
 };
 const geminiTestResult = await analyzeWithGemini({ systemInstruction: 'system', userMessage: 'search' });
 assert(geminiCalls.some(call => call.url.includes('/gemini-3.8-flash:generateContent')), 'Discovers and calls an available Gemini generateContent model');
+assert(!geminiCalls.some(call => call.url.includes('/gemini-2.5-flash-preview-tts:generateContent')), 'Skips audio/TTS models that cannot perform web search');
 assert(geminiCalls.some(call => call.url.includes(':generateContent') && JSON.parse(call.options.body).tools?.[0]?.google_search), 'Enables Google Search grounding in the Gemini request');
 assert(geminiTestResult.webSources?.[0]?.url === 'https://example.org/source', 'Extracts Gemini grounding sources from the response');
 globalThis.fetch = originalFetch;

@@ -125,11 +125,16 @@ async function listModelsSupportingGenerateContent(apiKey, signal) {
     return (data.models || [])
       .filter(model => model.supportedGenerationMethods?.includes('generateContent'))
       .map(model => String(model.name || '').replace(/^models\//, ''))
-      .filter(Boolean);
+      .filter(isTextGenerationModel);
   } catch (error) {
     if (error.name === 'AbortError') throw error;
     return [];
   }
+}
+
+function isTextGenerationModel(model) {
+  return /^gemini-/i.test(model)
+    && !/(?:tts|audio|live|transcrib|image|embedding|robotic|veo|imagen|music|computer-use|deep-research)/i.test(model);
 }
 
 function isRetryableModelError(status, message = '') {
@@ -138,7 +143,8 @@ function isRetryableModelError(status, message = '') {
     || text.includes('not found') || text.includes('high demand')
     || text.includes('no longer available') || text.includes('not supported')
     || text.includes('google_search') || text.includes('search grounding')
-    || text.includes('tool is not supported');
+    || text.includes('tool is not supported')
+    || (text.includes('search') && text.includes('not enabled'));
 }
 
 function extractGroundingSources(data) {
